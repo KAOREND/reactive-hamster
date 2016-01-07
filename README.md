@@ -2,7 +2,7 @@
 A reactive persistence and web framework
 
 The Hamster Framework consists of a reactive persistence layer and a web framework for building reactive applications.
-This means that changes in the data are instantly pushed to all users. This is ideal for communnication applications like [kaibla.com](kaibla.com) which is build on the Hamster Framework.
+This means that changes in the data are instantly pushed to all users. This is ideal for communnication applications like [kaibla.com](https://kaibla.com) which is build on the Hamster Framework.
 
 ##  Reactive Persistence Layer
 In order to achieve this the Hamster Framework implements the Model View Controller (MVC) pattern in a very consistent way: 
