@@ -1,0 +1,85 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+    "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+    <head>
+        <title>SLOT</title>
+        <meta http-equiv="expires" content="0">
+        <meta http-equiv="cache-control" content="no-cache">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <!-- END Meta Informationen -->
+        <!-- JavaScripts -->
+        <script type="text/javascript">
+
+            var hamster;
+            hamster = {};
+
+            //Konfiguration
+            hamster.Config = {};
+            hamster.Config.URL_h_request = "SLOT";
+            hamster.Config.URL_refresh = "SLOT";
+            hamster.Config.URL_static = "SLOT";
+            hamster.Config.contextRoot = "SLOT";
+            hamster.Editor = null;
+            var notificationPermissionQuestions = 'SLOT';
+            var timeout;
+            function textinput_blur(obj, param) {
+                if (param == 1)
+                {
+                    obj.style.border = '1px solid #A8C4E3';
+                    obj.style.outline = '1px solid #719BC9';
+                } else {
+                    obj.style.border = '1px solid #aaa';
+                    obj.style.outline = '';
+                }
+            }
+
+            hamster.deactivateLoader = function () {
+                document.body.style.cursor = '';
+            };
+            hamster.activateLoader = function () {
+                document.body.style.cursor = 'wait';
+            };
+
+            hamster.activateAlwaysLoader = function () {
+            };
+
+
+
+            function start() {
+                try {
+                    hamster.main.initialize();
+                    SLOT
+                } catch (e) {
+                    hamster.main.log(e);
+                    alert(e);
+                }
+            }
+        </script>
+        <link rel="stylesheet" href="RELATIVE_PATHcss/bootstrap.min.css" type="text/css">
+        <link rel="stylesheet" href="RELATIVE_PATHcss/chat.css" type="text/css">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0 , user-scalable=0">
+    </head>
+
+    <body onload="start()"> 
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container">
+            <div class="navbar-header">
+                <button aria-controls="navbar" aria-expanded="false" data-target="#navbar" data-toggle="collapse" class="navbar-toggle collapsed" type="button">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a href="#" class="navbar-brand">Hamster Framework Example Chat</a>
+            </div>        
+    </nav>
+    <div class="container">
+        SLOT
+    </div>    
+</body>
+<script type="text/javascript" src="RELATIVE_PATHjs/jquery_min.js"></script>  
+<script type="text/javascript" src="RELATIVE_PATHjs/hamsterui.js"></script>  
+</html>

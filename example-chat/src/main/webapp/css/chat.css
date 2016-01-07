@@ -1,0 +1,9 @@
+.chat-messages {
+    margin-top: 100px;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.textbox {
+    width: 100%;
+}
