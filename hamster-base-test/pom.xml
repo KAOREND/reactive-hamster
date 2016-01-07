@@ -7,7 +7,7 @@
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
-            <groupId>hamster-base</groupId>
+            <groupId>kaibla.hamster</groupId>
             <artifactId>hamster-base</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
