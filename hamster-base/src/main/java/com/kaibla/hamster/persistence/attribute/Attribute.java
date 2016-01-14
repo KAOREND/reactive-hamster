@@ -40,11 +40,11 @@ public abstract class Attribute implements Serializable {
 
     public abstract boolean equals(Object o1, Object o2);
 
-    public Object get(BasicDBObject dataObject) {
+    public Object get(org.bson.Document dataObject) {
         return dataObject.get(this.getName());
     }
 
-    public void set(BasicDBObject dataObject, Object value) {
+    public void set(org.bson.Document dataObject, Object value) {
         dataObject.put(getName(), value);
     }
 }

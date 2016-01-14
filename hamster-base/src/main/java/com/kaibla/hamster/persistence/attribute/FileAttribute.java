@@ -4,6 +4,9 @@ import com.mongodb.gridfs.GridFS;
 import com.mongodb.gridfs.GridFSDBFile;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.FileSystemProvider;
+import com.mongodb.Block;
+import com.mongodb.client.gridfs.model.GridFSFile;
+import com.mongodb.client.model.Filters;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
 
@@ -54,8 +57,12 @@ public class FileAttribute extends Attribute {
     public void deleteFile(Document mo) {
         String filename = mo.get(this);
         if (filename != null) {
-            GridFSDBFile file = fileSystemProvider.getFileSystem().findOne(filename);
-            fileSystemProvider.getFileSystem().remove(filename);
+            fileSystemProvider.getFileSystem().find(Filters.eq("filename", filename)).forEach(new Block<GridFSFile>() {
+                @Override
+                public void apply(GridFSFile file) {
+                    fileSystemProvider.getFileSystem().delete(file.getObjectId());
+                }
+            });
             mo.getDataObject().remove(this.getName());
 //            mo.writeToDatabase(false);
         }

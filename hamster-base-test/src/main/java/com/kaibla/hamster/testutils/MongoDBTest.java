@@ -9,6 +9,8 @@ import com.mongodb.Mongo;
 import com.kaibla.hamster.base.HamsterEngine;
 import com.kaibla.hamster.persistence.model.DocumentCollection;
 import com.kaibla.hamster.testutils.BaseTest;
+import com.mongodb.MongoClient;
+import com.mongodb.client.MongoDatabase;
 import java.net.UnknownHostException;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
@@ -22,16 +24,16 @@ import org.junit.Before;
 public class MongoDBTest extends BaseTest {
 
     public DocumentCollection testTable;
-    public DB db;
+    public MongoDatabase db;
     
 
     @Before
     public void setUp() throws UnknownHostException {
 
-        Mongo mongo = new Mongo();
-        db = mongo.getDB("test");
-        db.dropDatabase();
-        db = mongo.getDB("test");
+        MongoClient mongo = new MongoClient();
+        db = mongo.getDatabase("test");
+        db.drop();
+        db = mongo.getDatabase("test");
         testEngine = createTestEngine();
         testEngine.init();        
         testTable = new DocumentCollection(testEngine, db, "testTable") {
@@ -44,7 +46,7 @@ public class MongoDBTest extends BaseTest {
 
     @After
     public void tearDown() {
-        db.dropDatabase();
+        db.drop();
         testEngine.destroy();
         testEngine=null;
     }

@@ -611,13 +611,14 @@ public abstract class HamsterPage extends HamsterComponent {
             getEngine().removeUserPage(user.getId(), page);
         }
         onPageClose();
+        if (session != null) {
+            session.removePage(this);
+            if (!session.isActive()) {
 
-        session.removePage(this);
-        if (!session.isActive()) {
+                engine.removeSession(session);
+                onSessionClose();
 
-            engine.removeSession(session);
-            onSessionClose();
-
+            }
         }
         if (destroyed) {
             return;

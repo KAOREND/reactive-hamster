@@ -1,11 +1,11 @@
 package com.kaibla.hamster.persistence.query;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
 import com.kaibla.hamster.persistence.attribute.Attribute;
 import com.kaibla.hamster.persistence.model.Document;
+import com.mongodb.client.model.Filters;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
+import org.bson.conversions.Bson;
 
 /**
  *
@@ -28,21 +28,21 @@ public class Lower extends UnaryCondition {
         }
         return attr.compare(value2, value) < 0;
     }
-    private static final Logger LOG = getLogger(Lower.class.getName());
 
     @Override
-    public void buildQuery(DBObject parentQuery) {
-       BasicDBObject c = new BasicDBObject();
-        c.put("$lt", value);
-        addToParentQuery(parentQuery,attr.getName(), c);
+    public Bson buildQuery() {
+        return Filters.lt(attr.getName(), value);
     }
 
     @Override
     public boolean equals(Object o) {
-        if(o instanceof Lower) {
+        if (o instanceof Lower) {
             return super.equals(o);
         } else {
             return false;
         }
     }
+
+    private static final Logger LOG = getLogger(Lower.class.getName());
+
 }

@@ -21,4 +21,14 @@
                 <goal>install</goal>
             </goals>
         </action>
+        <action>
+            <actionName>CUSTOM-run Jetty</actionName>
+            <displayName>run Jetty</displayName>
+            <goals>
+                <goal>jetty:run-war</goal>
+            </goals>
+            <properties>
+                <jetty.port>8888</jetty.port>
+            </properties>
+        </action>
     </actions>

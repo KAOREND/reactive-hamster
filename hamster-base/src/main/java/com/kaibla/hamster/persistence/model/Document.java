@@ -1,8 +1,5 @@
 package com.kaibla.hamster.persistence.model;
 
-import com.kaibla.hamster.persistence.model.DocumentCollection;
-import com.mongodb.BasicDBObject;
-import com.mongodb.WriteConcern;
 import com.kaibla.hamster.base.AbstractListenerOwner;
 import com.kaibla.hamster.base.ChangedListener;
 import com.kaibla.hamster.base.HamsterEngine;
@@ -23,6 +20,8 @@ import com.kaibla.hamster.persistence.attribute.ObjectAttribute;
 import com.kaibla.hamster.persistence.attribute.SetAttribute;
 import com.kaibla.hamster.persistence.attribute.StringAttribute;
 import com.kaibla.hamster.collections.StringSource;
+import com.mongodb.WriteConcern;
+import com.mongodb.client.model.Filters;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.Collections;
@@ -34,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
+import org.bson.types.ObjectId;
 
 /**
  *
@@ -43,14 +43,13 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     DocumentCollection table;
     String id;
-//    String tableName;
     private boolean isNew = false;
-    transient BasicDBObject dataObject;
+    transient org.bson.Document dataObject;
 //    private transient boolean original=false;
     private final transient Set<Attribute> changedAttributes = Collections.newSetFromMap(new ConcurrentHashMap());
     private boolean isDummy = false;
 
-    public Document(HamsterEngine engine, DocumentCollection table, BasicDBObject dataObject) {
+    public Document(HamsterEngine engine, DocumentCollection table, org.bson.Document dataObject) {
         super(engine);
 //        original=true;
         assert dataObject != null;
@@ -116,9 +115,9 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         return dataObject.getDouble(attr.getName());
     }
 
-    public String get(StringAttribute attr) {        
+    public String get(StringAttribute attr) {
         String value = dataObject.getString(attr.getName());
-        if(value != null && attr.isCaseInsensitive()) {
+        if (value != null && attr.isCaseInsensitive()) {
             return value.toLowerCase();
         }
         return value;
@@ -130,7 +129,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     public int get(IntegerAttribute attr) {
         try {
-            return dataObject.getInt(attr.getName(), attr.getDefaultValue());
+            return dataObject.getInteger(attr.getName(), attr.getDefaultValue());
         } catch (NullPointerException e) {
             return 0;
         }
@@ -164,7 +163,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         }
         return this;
     }
-    
+
     public Document set(ObjectAttribute attr, Object value) {
         Object oldValue = get(attr);
         if (oldValue != value || (value != null && value.equals(oldValue))) {
@@ -175,7 +174,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public Document set(BooleanAttribute attr, boolean value) {
-        if (!dataObject.containsField(attr.getName()) || value != get(attr)) {
+        if (!dataObject.containsKey(attr.getName()) || value != get(attr)) {
             valueChanged(attr);
             dataObject.put(attr.getName(), value);
         }
@@ -196,8 +195,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         if (value == null) {
             dataObject.remove(attr.getName());
         } else {
-            if(attr.isCaseInsensitive()) {
-                value=value.toLowerCase();
+            if (attr.isCaseInsensitive()) {
+                value = value.toLowerCase();
             }
             dataObject.put(attr.getName(), value);
         }
@@ -243,9 +242,9 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         }
         return this;
     }
-    
+
     public boolean isFieldSet(Attribute attr) {
-        return dataObject.containsField(attr.getName());
+        return dataObject.containsKey(attr.getName());
     }
 
     public boolean isNew() {
@@ -265,41 +264,43 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         }
     }
 
+    public ObjectId getObjectId() {
+        return dataObject.getObjectId("_id");
+    }
+
     public String getId() {
-//        if(isNew) {
-//            writeToDatabase();
-//        }       
-        return dataObject.getString("_id");
-        
+        ObjectId id = getObjectId();
+        if (id == null) {
+            return null;
+        }
+        return id.toHexString();
     }
 
     public synchronized void writeToDatabase() {
         writeToDatabase(true);
     }
-    
+
     public synchronized void writeToDatabase(boolean fireEvents) {
         writeToDatabase(fireEvents, WriteConcern.ACKNOWLEDGED);
     }
 
-    public synchronized void writeToDatabase(boolean fireEvents,WriteConcern writeConcern) {
+    public synchronized void writeToDatabase(boolean fireEvents, WriteConcern writeConcern) {
 //      LOG.info("write to collection  "+table.getCollection()+"  insert "+isNew);
 //       LOG.info("       "+dataObject);        
-        
         if (isNew) {
-            table.getCollection().insert(dataObject);
-            table.getCollection().save(dataObject, writeConcern);
+            table.getCollection().withWriteConcern(writeConcern).insertOne(dataObject);
             isNew = false;
-            
             if (fireEvents) {
                 DataObjectCreatedEvent event = new DataObjectCreatedEvent(this, this);
                 this.fireChangedEvent(event);
                 table.fireChangedEvent(event);
-                table.fireEvents(event);               
+                table.fireEvents(event);
             }
             table.addToCache(this);
         } else {
             table.addToCache(this);
-            table.getCollection().save(dataObject, writeConcern);
+            table.getCollection().withWriteConcern(writeConcern).
+                    replaceOne(Filters.eq("_id", dataObject.get("_id")), dataObject);
             if (fireEvents) {
                 fireChangedEvent();
             }
@@ -307,7 +308,6 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         changedAttributes.clear();
 //        LOG.info("write to database finsished");
     }
-   
 
     public synchronized void addChangedAttribute(Attribute attr) {
         changedAttributes.add(attr);
@@ -321,7 +321,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public synchronized void delete() {
-        table.getCollection().remove(dataObject);
+        table.getCollection().deleteOne(dataObject);
         DataObjectDeletedEvent event = new DataObjectDeletedEvent(this, this);
         table.fireChangedEvent(event);
         table.fireEvents(event);
@@ -330,21 +330,21 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         destroy();
     }
 
-    public BasicDBObject getDataObject() {
+    public org.bson.Document getDataObject() {
         return dataObject;
     }
 
     public Document createClone() {
-        BasicDBObject cloneData = (BasicDBObject) dataObject.copy();
+        org.bson.Document cloneData = table.getByIdFromDatabase(getId()).getDataObject();
         Document clone = new Document(table.getEngine(), table, cloneData);
         return clone;
     }
-    
-     public Document createClone(Schema schema, Document user,boolean temp) {
-        BasicDBObject cloneData = new BasicDBObject();
+
+    public Document createClone(Schema schema, Document user, boolean temp) {
+        org.bson.Document cloneData = new org.bson.Document();
         Document clone = new Document(table.getEngine(), table, cloneData);
         clone.setIsDummy(temp);
-        clone.merge(this,schema,user,temp);
+        clone.merge(this, schema, user, temp);
         return clone;
     }
 
@@ -353,22 +353,22 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             Attribute changedAttribute = (Attribute) it.next();
             this.set(changedAttribute, entity.get(changedAttribute));
         }
-        dataObject.putAll(entity.getDataObject().toMap());
+        dataObject.putAll(entity.getDataObject());
         this.changedAttributes.addAll(entity.getChangedAttributes());
     }
-    
-    public void merge(Document entity,Schema schema,Document user,boolean temp) {
-        for(Attribute attr : schema.getAttributes()) {
-             if(attr instanceof ComplexCopy) {
-                 ((ComplexCopy)attr).createCopy(entity, this, user,temp);
-             } else {
-                 this.set(attr, entity.get(attr));
-             }
+
+    public void merge(Document entity, Schema schema, Document user, boolean temp) {
+        for (Attribute attr : schema.getAttributes()) {
+            if (attr instanceof ComplexCopy) {
+                ((ComplexCopy) attr).createCopy(entity, this, user, temp);
+            } else {
+                this.set(attr, entity.get(attr));
+            }
         }
     }
 
 //    public MongoObject getPreviousVersion() {
-//        MongoObject p= new MongoObject(table.getEngine(), table, new BasicDBObject());
+//        MongoObject p= new MongoObject(table.getEngine(), table, new org.bson.Document());
 //        p.dataObject.putAll(dataObject.toMap());
 //        for(Attribute attr : changedAttributes.keySet() ) {
 //            p.set(attr, changedAttributes.get(attr));

@@ -6,13 +6,12 @@
 package com.kaibla.hamster.persistence.query;
 
 import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
 import com.kaibla.hamster.persistence.model.Document;
-import java.util.ArrayList;
+import com.mongodb.client.model.Filters;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
+import org.bson.conversions.Bson;
+import java.util.ArrayList;
 
 /**
  *
@@ -42,16 +41,16 @@ public class And extends Condition {
         return conditions;
     }
     
-    
-
     @Override
-    public void buildQuery(DBObject parentQuery) {      
-         BasicDBList s = new BasicDBList();
-        for(Condition condition : conditions) {           
-            condition.buildQuery(s);
-        }       
-        addToParentQuery(parentQuery, "$and", s);
+    public Bson buildQuery() {
+        ArrayList<Bson> filters=new ArrayList(conditions.size());
+        for(Condition c : conditions) {
+            filters.add(c.buildQuery());
+        }
+        return Filters.and(filters);
     }
+    
+    
     
     @Override
     public boolean equals(Object o) {

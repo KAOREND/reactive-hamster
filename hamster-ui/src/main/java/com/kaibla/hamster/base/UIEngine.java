@@ -1,9 +1,6 @@
 package com.kaibla.hamster.base;
 
-import com.mongodb.DB;
-import com.mongodb.gridfs.GridFS;
-import com.mongodb.gridfs.GridFSDBFile;
-import com.mongodb.gridfs.GridFSInputFile;
+
 import static com.kaibla.hamster.base.UIContext.setEvent;
 import static com.kaibla.hamster.base.UIContext.setPage;
 import static com.kaibla.hamster.base.UIContext.setRequest;
@@ -19,8 +16,11 @@ import com.kaibla.hamster.servlet.WebSocket;
 import com.kaibla.hamster.monitoring.AutomaticMonitoring;
 import com.kaibla.hamster.util.CloneMap;
 import com.kaibla.hamster.monitoring.DeadLockMonitor;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
+import com.mongodb.Block;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.gridfs.GridFSBucket;
+import com.mongodb.client.gridfs.model.GridFSFile;
+import com.mongodb.client.model.Filters;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -71,7 +71,6 @@ import javax.servlet.http.HttpServletResponse;
 import javax.websocket.SendHandler;
 import javax.websocket.SendResult;
 import javax.websocket.Session;
-import org.apache.commons.io.IOUtils;
 
 /**
  *
@@ -100,7 +99,7 @@ public abstract class UIEngine extends HamsterEngine {
     /**
      * GridFS used for storing persisted sessions
      */
-    private GridFS gridFS;
+    private GridFSBucket gridFS;
 
     private PersistedPages persistedPages;
 
@@ -122,7 +121,7 @@ public abstract class UIEngine extends HamsterEngine {
         ImageIO.scanForPlugins();
     }
 
-    public void initDB(DB db, GridFS gridFS) {
+    public void initDB(MongoDatabase db, GridFSBucket gridFS) {
         this.gridFS = gridFS;
         persistedPages = new PersistedPages(engine, db, gridFS);
     }
@@ -1222,7 +1221,6 @@ public abstract class UIEngine extends HamsterEngine {
     }
 
     public synchronized void persistPage(HamsterPage p) {
-        GridFSInputFile inputFile = null;
         try {
             if (!p.getLock().tryLock(10, TimeUnit.SECONDS)) {
                 Logger.getLogger(UIEngine.class.getName()).log(Level.SEVERE, "Could not aquire page lock after 10 seconds");
@@ -1238,11 +1236,7 @@ public abstract class UIEngine extends HamsterEngine {
                 if (p.getUser() != Users.DEFAULT_USER && p.getUser() != null) {
                     String fileName = "/pages/" + p.getId();
                     if (persistedPages.checkAndCleanup(p.getUser().getId(), fileName)) {
-                        inputFile = gridFS.
-                                createFile(fileName);
-                        p.persist(new BufferedOutputStream(inputFile.getOutputStream()));
-                        LOG.log(Level.INFO, "persisting page path {0} size: {1}", new Object[]{fileName, inputFile.
-                            getLength()});
+                        p.persist(gridFS.openUploadStream(fileName));
                     } else {
                         LOG.log(Level.WARNING, "Did not persist page for " + p.getUser().getId() + "  user has persisted to many pages in current time");
                     }
@@ -1267,46 +1261,46 @@ public abstract class UIEngine extends HamsterEngine {
     public synchronized HamsterPage resumePage(String pageId) {
         String fileName = "/pages/" + pageId;
         LOG.log(Level.INFO, "resuming page: {0}", fileName);
-        GridFSDBFile file = gridFS.findOne(fileName);
-        if (file != null) {
-            HamsterPage page = null;
+
+        HamsterPage page = null;
+        try {
+
+            page = resume(gridFS.openDownloadStreamByName(fileName), this);
+        } catch (Exception ex) {
+            File sessionFile = new File(System.getProperty("catalina.base") + "/logs/failedResume" + pageId);
+            LOG.log(Level.SEVERE, "error while restoring page, storing backup: " + sessionFile, ex);
+            OutputStream out = null;
             try {
-                page = resume(new BufferedInputStream(file.
-                        getInputStream()), this);
-            } catch (Exception ex) {
-                File sessionFile = new File(System.getProperty("catalina.base") + "/logs/failedResume" + pageId);
-                LOG.log(Level.SEVERE, "error while restoring page, storing backup: " + sessionFile, ex);
-                OutputStream out = null;
-                try {
-                    out = new FileOutputStream(sessionFile);
-                    IOUtils.copy(file.getInputStream(), out);
-                    //throw ex;
-                } catch (IOException ex1) {
-                    Logger.getLogger(UIEngine.class.getName()).log(Level.SEVERE, null, ex1);
-                } finally {
-                    if (out != null) {
-                        try {
-                            out.close();
-                        } catch (IOException ex1) {
-                            Logger.getLogger(UIEngine.class.getName()).log(Level.SEVERE, null, ex1);
-                        }
+                out = new FileOutputStream(sessionFile);
+                gridFS.downloadToStreamByName(fileName, out);
+                //throw ex;
+            } catch (IOException ex1) {
+                Logger.getLogger(UIEngine.class.getName()).log(Level.SEVERE, null, ex1);
+            } finally {
+                if (out != null) {
+                    try {
+                        out.close();
+                    } catch (IOException ex1) {
+                        Logger.getLogger(UIEngine.class.getName()).log(Level.SEVERE, null, ex1);
                     }
                 }
             }
-            if (page == null) {
-                //try to delete broken stored page:
-                gridFS.remove(file);
-                LOG.log(Level.WARNING, "page can not be restored  {0}  {1}", new Object[]{fileName, pageId});
-            } else {
-                gridFS.remove(file);
-                LOG.log(Level.INFO, "resumed page: {0}   {1}", new Object[]{fileName, page.
-                    getId()});
-            }
-            return page;
-        } else {
-            LOG.log(Level.INFO, "page: {0}  was not found", fileName);
-            return null;
         }
+        if (page == null) {
+            //try to delete broken stored page:
+            
+            LOG.log(Level.WARNING, "page can not be restored  {0}  {1}", new Object[]{fileName, pageId});
+        } else {
+            LOG.log(Level.INFO, "resumed page: {0}   {1}", new Object[]{fileName, page.
+                getId()});
+        }
+        gridFS.find(Filters.eq("filename", fileName)).forEach(new Block<GridFSFile>() {
+            @Override
+            public void apply(GridFSFile file) {
+                  gridFS.delete(file.getObjectId()); 
+            }
+        });
+        return page;
     }
 
     public HamsterPage getPage(String pageId) {

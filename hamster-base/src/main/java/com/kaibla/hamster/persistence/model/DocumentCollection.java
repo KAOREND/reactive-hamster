@@ -1,10 +1,5 @@
 package com.kaibla.hamster.persistence.model;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DB;
-import com.mongodb.DBCollection;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 import com.kaibla.hamster.base.ChangedListener;
 import com.kaibla.hamster.base.Context;
 import com.kaibla.hamster.base.DataEvent;
@@ -19,6 +14,11 @@ import com.kaibla.hamster.persistence.attribute.LongTextAttribute;
 import com.kaibla.hamster.persistence.attribute.SetAttribute;
 import com.kaibla.hamster.persistence.query.Condition;
 import com.kaibla.hamster.persistence.query.Equals;
+import com.mongodb.Block;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -44,20 +44,19 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     private static final long serialVersionUID = 1L;
 
     private transient ConcurrentHashMap<String, Document> map = null;
-    private final transient DB db;
-    private transient DBCollection collection;
+    private final transient MongoDatabase db;
+    private transient MongoCollection collection;
     transient List<Attribute> attributes;
     transient DocumentCollection self = this;
     private static final HashMap<String, DocumentCollection> nameMap = new HashMap<String, DocumentCollection>();
-    
-    private static final HashMap<String, DocumentCollection> classMap = new HashMap<String, DocumentCollection>();
 
+    private static final HashMap<String, DocumentCollection> classMap = new HashMap<String, DocumentCollection>();
 
     private final HashMap<Attribute, FilteredModel> eventRoutings = new HashMap<Attribute, FilteredModel>();
 
     private final String tableName;
 
-    public DocumentCollection(HamsterEngine engine, DB db, String name) {
+    public DocumentCollection(HamsterEngine engine, MongoDatabase db, String name) {
         super(engine);
         map = new ConcurrentHashMap();
         this.db = db;
@@ -65,7 +64,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         collection = db.getCollection(name);
         attributes = new ArrayList();
         nameMap.put(name, this);
-        classMap.put(this.getClass().getName(),this);
+        classMap.put(this.getClass().getName(), this);
     }
 
     public synchronized void addChangedListener(ChangedListener listener, Query query) {
@@ -160,14 +159,14 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         DocumentCollection t = nameMap.get(name);
         return t;
     }
-    
+
     public static DocumentCollection getByClassName(String name) {
         DocumentCollection t = classMap.get(name);
         return t;
     }
 
     public Document createNew() {
-        BasicDBObject newData = new BasicDBObject();
+        org.bson.Document newData = new org.bson.Document();
         ObjectId id = new ObjectId(new Date());
         newData.put("_id", id);
         Document newObject = new Document(getEngine(), this, newData);
@@ -177,7 +176,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public Document createNewDummy() {
-        BasicDBObject newData = new BasicDBObject();
+        org.bson.Document newData = new org.bson.Document();
         ObjectId id = new ObjectId(new Date());
         newData.put("_id", id);
         Document newObject = new Document(getEngine(), this, newData);
@@ -241,7 +240,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
 
     }
 
-    public Document getEntityForMongo(BasicDBObject dbObject) {
+    public Document getEntityForMongo(org.bson.Document dbObject) {
         synchronized (map) {
             String id = "" + dbObject.get("_id");
             Document o = map.get(id);
@@ -271,8 +270,8 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     /**
-     * @param allowCache allows to access a database object without adding it to the cache. DO NOT EDIT non-cached
-     * objects!
+     * @param allowCache allows to access a database object without adding it to
+     * the cache. DO NOT EDIT non-cached objects!
      */
     public Document getById(String id, boolean allowCache, ChangedListener owner) {
         if (id == null) {
@@ -319,8 +318,8 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         if (id == null || id.isEmpty()) {
             return null;
         }
-        BasicDBObject object = (BasicDBObject) collection.
-                findOne(new BasicDBObject("_id", new ObjectId(id)));
+        org.bson.Document object = (org.bson.Document) collection.
+                find(new org.bson.Document("_id", new ObjectId(id))).limit(1).first();
         if (object == null) {
             return null;
         }
@@ -333,23 +332,28 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
      * @param event
      * @param query
      */
-    public void fireEvent(DataEvent event, BaseQuery query) {
+    public void fireEvent(final DataEvent event, BaseQuery query) {
         //query only ids
-        DBCursor cursor = collection.find(query.getQuery(), new BasicDBObject());
-        while (cursor.hasNext()) {
-            BasicDBObject dbObject = (BasicDBObject) cursor.next();
-            String id = "" + dbObject.get("_id");
-            synchronized (map) {
-                Document o = map.get(id);
-                if (o != null) {
-                    o.fireChangedEvent(event);
+        FindIterable cursor = collection.find(query.getQuery());
+        cursor.forEach(new Block() {
+
+            @Override
+            public void apply(Object t) {
+                org.bson.Document dbObject = (org.bson.Document) t;
+                String id = "" + dbObject.get("_id");
+                synchronized (map) {
+                    Document o = map.get(id);
+                    if (o != null) {
+                        o.fireChangedEvent(event);
+                    }
                 }
             }
-        }
+        });
     }
 
     /**
-     * This method should be overriden to fireEvents when an objects has been changed.
+     * This method should be overriden to fireEvents when an objects has been
+     * changed.
      *
      * @param e
      */
@@ -357,7 +361,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public void ensureIndex(boolean unique, boolean sparse, Attribute... attr) {
-        BasicDBObject keys = new BasicDBObject();
+        org.bson.Document keys = new org.bson.Document();
         for (Attribute a : attr) {
             if (a instanceof LongTextAttribute) {
                 keys.append(a.getName(), "text");
@@ -372,8 +376,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
             keys.append("dropDups", true);
         }
         keys.append("sparse", sparse);
-        collection.ensureIndex(keys);
-        LOG.log(Level.INFO, "Indexes: {0}", collection.getIndexInfo());
+        collection.createIndex(keys);
     }
 
     public void dropAllIndexes() {
@@ -381,8 +384,8 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public Document queryOne(BaseQuery query) {
-        BasicDBObject dbObject = (BasicDBObject) collection.findOne(query.
-                getQuery());
+        org.bson.Document dbObject = (org.bson.Document) collection.find(query.
+                getQuery()).limit(1).first();
         if (dbObject == null) {
             return null;
         }
@@ -398,8 +401,8 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public boolean exists(BaseQuery query) {
-        BasicDBObject dbObject = (BasicDBObject) collection.findOne(query.
-                getQuery());
+        org.bson.Document dbObject = (org.bson.Document) collection.find(query.
+                getQuery()).limit(1).first();
         return dbObject != null;
     }
 
@@ -407,42 +410,61 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         return collection.count(query.getQueryPartOnly());
     }
 
-    public List<Document> query(BaseQuery query) {
-        ArrayList list = new ArrayList(16);
-        DBCursor cursor = collection.find(query.getQuery());
-        while (cursor.hasNext()) {
-            BasicDBObject dbObject = (BasicDBObject) cursor.next();
-            String id = "" + dbObject.get("_id");
-            synchronized (map) {
-                Document o = map.get(id);
-                if (o == null) {
-                    o = new Document(getEngine(), self, dbObject);
-                    addToCache(o);
-                }
-                if (query.isInQuery(o)) {
-                    list.add(o);
+    public List<Document> query(final BaseQuery query) {
+        final ArrayList list = new ArrayList(16);
+        collection.find(query.getQuery()).forEach(new Block<org.bson.Document>() {
+            @Override
+            public void apply(org.bson.Document dbObject) {
+                String id = "" + dbObject.get("_id");
+                synchronized (map) {
+                    Document o = map.get(id);
+                    if (o == null) {
+                        o = new Document(getEngine(), self, dbObject);
+                        addToCache(o);
+                    }
+                    if (query.isInQuery(o)) {
+                        list.add(o);
+                    }
                 }
             }
-        }
+        });
         return list;
     }
 
+    public void forEach(final BaseQuery query, final Block<Document> block) {
+        collection.find(query.getQuery()).forEach(new Block<org.bson.Document>() {
+
+            @Override
+            public void apply(org.bson.Document dbObject) {
+                String id = "" + dbObject.get("_id");
+                synchronized (map) {
+                    Document o = map.get(id);
+                    if (o == null) {
+                        o = new Document(getEngine(), self, dbObject);
+                        addToCache(o);
+                    }
+                    block.apply(o);
+                }
+            }
+        });
+    }
+
     public Iterable<Document> queryIterable(final BaseQuery query) {
-        final DBCursor cursor = collection.find(query.getQuery());
-        final Iterator<DBObject> iter = cursor.iterator();
+        final MongoCursor cursor = collection.find(query.getQuery()).iterator();
         return new Iterable<Document>() {
 
             @Override
             public Iterator<Document> iterator() {
                 return new Iterator<Document>() {
+
                     @Override
                     public boolean hasNext() {
-                        return iter.hasNext();
+                        return cursor.hasNext();
                     }
 
                     @Override
                     public Document next() {
-                        BasicDBObject dbObject = (BasicDBObject) iter.next();
+                        org.bson.Document dbObject = (org.bson.Document) cursor.next();
                         String id = "" + dbObject.get("_id");
                         synchronized (map) {
                             Document o = map.get(id);
@@ -450,42 +472,19 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
                                 o = new Document(getEngine(), self, dbObject);
                                 addToCache(o);
                             }
-//                            if(query.isInQuery(o)) {
-                                return o;
-//                            } else {
-//                                if(hasNext()) {
-//                                    return next();
-//                                } else {
-//                                    return null;
-//                                }
-//                            }
+                            return o;
                         }
                     }
 
                     @Override
                     public void remove() {
-                        iter.remove();
+                        cursor.remove();
                     }
                 };
             }
         };
     }
 
-//    public List<MongoObject> queryDistinct(Attribute distinctAttribute,BaseQuery query) {
-//        ArrayList list = new ArrayList(16);
-//        DBCursor cursor = collection.distinct(distinctAttribute.getName(), query.getQuery());
-//        while (cursor.hasNext()) {
-//            BasicDBObject dbObject = (BasicDBObject) cursor.next();
-//            String id = "" + dbObject.get("_id");
-//            MongoObject o = (MongoObject) map.get(id);
-//            if (o == null) {
-//                o = new MongoObject(getEngine(), self, dbObject);
-//                addToCache(o);
-//            }
-//            list.add(o);
-//        }
-//        return list;
-//    }
     public QueryResultListModel query(AbstractListenerOwner comp, BaseQuery query) {
         return query(comp, query, this);
     }
@@ -497,19 +496,19 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     /**
      * @return the db
      */
-    public DB getDb() {
+    public MongoDatabase getDb() {
         return db;
     }
 
     /**
      * @return the collection
      */
-    public DBCollection getCollection() {
+    public MongoCollection getCollection() {
         return collection;
     }
 
     public long getSize() {
-        return collection.getCount();
+        return collection.count();
     }
 
     public Object prepareResume(HamsterEngine engine) {

@@ -7,8 +7,10 @@ import com.kaibla.hamster.data.Users;
 import com.kaibla.hamster.example.persistence.DocumentCollections;
 import com.kaibla.hamster.example.ui.ExampleChatPage;
 import com.kaibla.hamster.persistence.model.Document;
-import com.mongodb.DB;
-import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.gridfs.GridFSBucket;
+import com.mongodb.client.gridfs.GridFSBuckets;
 import com.mongodb.gridfs.GridFS;
 import java.net.UnknownHostException;
 import java.util.Locale;
@@ -18,7 +20,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /**
- * An Engine is the core of Hamster Framework App. From here everything else is beeing initialized.
+ * An Engine is the core of Hamster Framework App. From here everything else is
+ * beeing initialized.
  *
  * @author korend
  */
@@ -44,23 +47,18 @@ public class ExampleChatEngine extends UIEngine {
 
     protected void initDB(String dbName) {
         //set up the persistence layer
-        try {
-            //Connect to the local MongoDB instance
-            Mongo m = new Mongo();
-            //get the DB with the given Name
-            DB chatDB = m.getDB(dbName);
-            //initialize our collections
-            DocumentCollections.init(this, chatDB);
-            //set up GridFs for storing files
-            GridFS fs = new GridFS(chatDB);
+        //Connect to the local MongoDB instance
+        MongoClient m = new MongoClient();
+        //get the DB with the given Name
+        MongoDatabase chatDB = m.getDatabase(dbName);
+        //initialize our collections
+        DocumentCollections.init(this, chatDB);
+        //set up GridFs for storing files
+        GridFSBucket fs = GridFSBuckets.create(chatDB,"persistedPages");
             //the base class UIEngine needs the gridFS for
-            //persisting sessions
-            super.initDB(chatDB, fs);
-        } catch (UnknownHostException ex) {
-            //without a DB we cannot really do anything
-            Logger.getLogger(ExampleChatEngine.class.getName()).log(Level.SEVERE, null, ex);
-            throw new RuntimeException(ex);
-        }
+        //persisting sessions
+        super.initDB(chatDB, fs);
+
     }
 
     @Override

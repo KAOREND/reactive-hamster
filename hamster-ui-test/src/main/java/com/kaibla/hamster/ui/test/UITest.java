@@ -11,6 +11,8 @@ import com.kaibla.hamster.base.UIEngine;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.servlet.CometProcessor;
 import com.kaibla.hamster.testutils.MongoDBTest;
+import com.mongodb.client.gridfs.GridFSBucket;
+import com.mongodb.client.gridfs.GridFSBuckets;
 import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.logging.Logger;
@@ -53,7 +55,7 @@ public class UITest extends MongoDBTest {
         }
         loader = new HamsterLoader();
         UIEngine engine = createUITestEngine();
-        engine.initDB(db, new GridFS(db));
+        engine.initDB(db, GridFSBuckets.create(db));
         loader.setEngine(engine);
         testEngine=engine;
         CometProcessor.setEngine(engine);  

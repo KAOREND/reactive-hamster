@@ -150,7 +150,7 @@ public class ModificationManagerTest extends UITest {
             t.set(orderAttribute, i);
             t.writeToDatabase();
         }
-        List l = new List(page, "testList", testTable.query(d, new Query().addOrder(orderAttribute, false))) {
+        List l = new List(page, "testList", testTable.query(d, new Query().addSortCriteria(orderAttribute, false))) {
             @Override
             public HamsterComponent renderElement(DataModel data) {
                 DefaultComponent e = new DefaultComponent(page);

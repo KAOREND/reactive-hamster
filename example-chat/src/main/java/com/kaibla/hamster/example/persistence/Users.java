@@ -4,7 +4,7 @@ package com.kaibla.hamster.example.persistence;
 
 import com.kaibla.hamster.base.UIEngine;
 import com.kaibla.hamster.persistence.query.Query;
-import com.mongodb.DB;
+import com.mongodb.client.MongoDatabase;
 
 /**
  * This collections contains all our users. As the Hamster UI Engine already has a basic concept of users,
@@ -16,7 +16,7 @@ public class Users extends com.kaibla.hamster.data.Users {
     
     private static final long serialVersionUID = 1L;
 
-    public Users(UIEngine engine, DB db) {
+    public Users(UIEngine engine, MongoDatabase db) {
         //our users will be stored in the MongoDB collection "users"
         super(engine, db, "users");
     }

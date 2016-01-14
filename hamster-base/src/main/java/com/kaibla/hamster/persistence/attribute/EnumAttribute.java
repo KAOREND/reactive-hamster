@@ -71,7 +71,7 @@ public class EnumAttribute<T extends Enum<T>> extends Attribute {
     }
 
     @Override
-    public void set(BasicDBObject dataObject, Object value) {
+    public void set(org.bson.Document dataObject, Object value) {
         Object o = getName(value);
         if (o != null) {
             dataObject.put(this.getName(), o);

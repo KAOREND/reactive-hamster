@@ -10,7 +10,7 @@ import com.kaibla.hamster.persistence.model.DocumentCollection;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.model.QueryResultListModel;
 import com.kaibla.hamster.persistence.query.Query;
-import com.mongodb.DB;
+import com.mongodb.client.MongoDatabase;
 import java.util.Date;
 
 /**
@@ -38,7 +38,7 @@ public class Messages extends DocumentCollection {
     
     private static final long serialVersionUID = 1L;
 
-    public Messages(HamsterEngine engine, DB db) {
+    public Messages(HamsterEngine engine, MongoDatabase db) {
         // not much to do here, we just give this collection the name: messages
         super(engine, db, "messages");
         //if needed we would add the index creation here
@@ -67,6 +67,6 @@ public class Messages extends DocumentCollection {
      * @return List Model container the messages order by their creation time.
      */
     public QueryResultListModel getMessages(AbstractListenerOwner owner) {
-        return query(owner,new Query().addOrder(CREATION_TIME, true));
+        return query(owner,new Query().addSortCriteria(CREATION_TIME, true));
     }
 }

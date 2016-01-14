@@ -111,7 +111,7 @@ public class ModificationManager implements Serializable, Resumable {
         page.getLock().lock();
         try {
             page.onPageUpdate();
-            currentResult.clear();
+            currentResult =  new HashSet<>();
 
 //            LOG.info("getModificationXML "+debugCount+"  page: "+page.getId());
 //            debugCount++;

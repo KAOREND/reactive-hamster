@@ -48,7 +48,7 @@ public class DocumentReferenceAttribute<T extends DocumentCollection> extends At
     }
 
     @Override
-    public Object get(BasicDBObject dataObject) {
+    public Object get(org.bson.Document dataObject) {
        return table.getById(dataObject.getString(getName()));
     }
     

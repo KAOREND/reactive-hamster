@@ -1,12 +1,12 @@
 package com.kaibla.hamster.persistence.query;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
 import com.kaibla.hamster.persistence.attribute.Attribute;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.attribute.DocumentReferenceAttribute;
+import com.mongodb.client.model.Filters;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
+import org.bson.conversions.Bson;
 
 /**
  *
@@ -29,28 +29,25 @@ public class NotEquals extends UnaryCondition {
         }
         return !attr.equals(value, value2);
     }
-    private static final Logger LOG = getLogger(NotEquals.class.getName());
 
     @Override
-    public void buildQuery(DBObject parentQuery) {
-
-        if (attr instanceof DocumentReferenceAttribute) {           
-            BasicDBObject s = new BasicDBObject();
-            s.put("$ne", ((Document) value).getId());
-            addToParentQuery(parentQuery,attr.getName(), s);
+    public Bson buildQuery() {
+        if (attr instanceof DocumentReferenceAttribute) {
+            org.bson.Document s = new org.bson.Document();
+            return Filters.ne(attr.getName(), ((Document) value).getId());
         } else {
-            BasicDBObject s = new BasicDBObject();
-            s.put("$ne", value);
-            addToParentQuery(parentQuery,attr.getName(), s);
+            return Filters.ne(attr.getName(), value);
         }
     }
 
     @Override
     public boolean equals(Object o) {
-        if(o instanceof NotEquals) {
+        if (o instanceof NotEquals) {
             return super.equals(o);
         } else {
             return false;
         }
     }
+
+    private static final Logger LOG = getLogger(NotEquals.class.getName());
 }

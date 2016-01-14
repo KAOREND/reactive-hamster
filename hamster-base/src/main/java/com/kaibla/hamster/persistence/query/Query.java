@@ -2,13 +2,16 @@ package com.kaibla.hamster.persistence.query;
 
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.attribute.Attribute;
-import com.mongodb.BasicDBObject;
+import com.mongodb.MongoClient;
 import com.mongodb.util.JSON;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.conversions.Bson;
 
 /**
  *
@@ -16,23 +19,23 @@ import static java.util.logging.Logger.getLogger;
  */
 public class Query implements BaseQuery {
 
-    BasicDBObject wholeQuery;
-    BasicDBObject query;
-    BasicDBObject orderBy;
-    List<Condition> conditions = new LinkedList<Condition>();
-    List<Order> orders = new LinkedList<Order>();
-    List<Equals> eventFilterConditions=new ArrayList<Equals>();
-    
+    transient BsonDocument wholeQuery;
+    transient Bson query;
+    transient BsonDocument orderBy;
+    List<Condition> conditions = new LinkedList<>();
+    List<SortCriteria> sortCriterias = new LinkedList<>();
+    List<Equals> eventFilterConditions = new ArrayList<>();
+
     public Query() {
-        wholeQuery = new BasicDBObject();
-        query = new BasicDBObject();
-        orderBy = new BasicDBObject();
+        wholeQuery = new BsonDocument();
+        query = new org.bson.Document();
+        orderBy = new BsonDocument();
     }
 
     public List<Equals> getEventFilter() {
         return eventFilterConditions;
     }
-    
+
     public Query addEventFilter(Equals attr) {
         eventFilterConditions.add(attr);
         return this;
@@ -49,9 +52,9 @@ public class Query implements BaseQuery {
     }
 
 //    public Query equals(LongTextAttribute attr, Object value) {
-//        BasicDBObject s = new BasicDBObject();
+//        org.bson.Document s = new org.bson.Document();
 //        s.put("$search", value);
-////        BasicDBObject c = new BasicDBObject();
+////        org.bson.Document c = new org.bson.Document();
 ////        c.put("$text", s);
 //        query.put("$text", value);
 //        conditions.add(new Equals(attr, value));
@@ -61,8 +64,8 @@ public class Query implements BaseQuery {
         conditions.add(new Greater(attr, value));
         return this;
     }
-    
-      public Query greaterOrEquals(Attribute attr, Object value) {
+
+    public Query greaterOrEquals(Attribute attr, Object value) {
         conditions.add(new GreaterOrEquals(attr, value));
         return this;
     }
@@ -72,62 +75,68 @@ public class Query implements BaseQuery {
         return this;
     }
 
-     public Query lowerOrEquals(Attribute attr, Object value) {
+    public Query lowerOrEquals(Attribute attr, Object value) {
         conditions.add(new LowerOrEquals(attr, value));
         return this;
     }
-         
-    public Query addOrder(Attribute attr, boolean descending) {
-        if (descending) {
-            orderBy.put(attr.getName(), -1);
-        } else {
-            orderBy.put(attr.getName(), 1);
-        }
-        orders.add(new Order(attr, descending));
+
+    public Query addSortCriteria(Attribute attr, boolean descending) {
+        sortCriterias.add(new SortCriteria(attr, descending));
         return this;
     }
 
     private void buildQuery() {
-        query = new BasicDBObject();
-        wholeQuery = new BasicDBObject();
-        for (Condition condition : conditions) {
-            condition.buildQuery(query);
+        query = new BsonDocument();
+        wholeQuery = new BsonDocument();
+        orderBy = new BsonDocument();
+        if (conditions.size() > 1) {
+            And and = new And(conditions);
+            query = and.buildQuery();
+        } else if (conditions.size() == 1) {
+            query = conditions.get(0).buildQuery();
         }
-        wholeQuery.put("$query", query);
+        for (SortCriteria sortCriteria : sortCriterias) {
+            if (sortCriteria.isDescending()) {
+                orderBy.put(sortCriteria.getAttribute().getName(), new BsonInt32(-1));
+            } else {
+                orderBy.put(sortCriteria.getAttribute().getName(), new BsonInt32(1));
+            }
+        }
+        wholeQuery.put("$query", query.toBsonDocument(null, MongoClient.getDefaultCodecRegistry()));
         wholeQuery.put("$orderby", orderBy);
     }
 
     public List<Condition> getConditions() {
         return conditions;
     }
-    
+
     public void addCondition(Condition condition) {
         conditions.add(condition);
-        if(condition instanceof And) {
-            And and =(And) condition;
+        if (condition instanceof And) {
+            And and = (And) condition;
             addEventFilter(and);
         }
     }
-    
+
     private void addEventFilter(And and) {
-        for(Condition c : and.getConditions()) {
-                if(c instanceof Equals) {
-                    addEventFilter((Equals) c);
-                } else if(c instanceof And) {
-                    addEventFilter((And) c);
-                }
-            } 
+        for (Condition c : and.getConditions()) {
+            if (c instanceof Equals) {
+                addEventFilter((Equals) c);
+            } else if (c instanceof And) {
+                addEventFilter((And) c);
+            }
+        }
     }
 
     @Override
-    public BasicDBObject getQuery() {
+    public Bson getQuery() {
         buildQuery();
-        LOG.fine("building query: "+JSON.serialize(wholeQuery));        
+        LOG.fine("building query: " + wholeQuery.toJson());
         return wholeQuery;
     }
 
     @Override
-    public BasicDBObject getQueryPartOnly() {
+    public Bson getQueryPartOnly() {
         buildQuery();
         return query;
     }
@@ -144,7 +153,7 @@ public class Query implements BaseQuery {
 
     @Override
     public int compare(Document o1, Document o2) {
-        for (Order order : orders) {
+        for (SortCriteria order : sortCriterias) {
             int diff = order.compare(o1, o2);
             if (diff != 0) {
                 return diff;
@@ -163,7 +172,7 @@ public class Query implements BaseQuery {
 
     @Override
     public boolean isOrderAttribute(Attribute attr) {
-        for (Order order : orders) {
+        for (SortCriteria order : sortCriterias) {
             if (order.getAttribute() == attr) {
                 return true;
             }
@@ -173,27 +182,26 @@ public class Query implements BaseQuery {
 
     @Override
     public boolean equals(Object o) {
-        if(o instanceof Query) {
-            Query q=(Query) o;
-            return conditions.equals(q.conditions) && orders.equals(q.orders);
+        if (o instanceof Query) {
+            Query q = (Query) o;
+            return conditions.equals(q.conditions) && sortCriterias.equals(q.sortCriterias);
         } else {
             return false;
         }
     }
-    
+
     @Override
     public int hashCode() {
-        int hashCode=1;
-        for(Condition cond : conditions) {
-             hashCode = 31 * hashCode +cond.hashCode();
-        }  
-        for(Order order : orders) {
-             hashCode = 31 * hashCode +order.hashCode();
-        } 
-        return hashCode; 
+        int hashCode = 1;
+        for (Condition cond : conditions) {
+            hashCode = 31 * hashCode + cond.hashCode();
+        }
+        for (SortCriteria order : sortCriterias) {
+            hashCode = 31 * hashCode + order.hashCode();
+        }
+        return hashCode;
     }
-    
-    
+
     private static final Logger LOG = getLogger(Query.class
             .getName());
 }

@@ -18,30 +18,34 @@ public abstract class AbstractListenerContainer<T> extends AbstractListenerOwner
     private HamsterEngine engine;
     private T owner;
 
-    public AbstractListenerContainer(HamsterEngine engine,T owner) {
+    public AbstractListenerContainer(HamsterEngine engine, T owner) {
         super(null);
         setListenerContainer(this);
         this.engine = engine;
-        this.owner=owner;
-        
+        this.owner = owner;
+
     }
 
     public T getOwner() {
         return owner;
     }
-    
 
     public void interrupt() {
         engine.updatePage(this);
     }
 
     protected void addToPendingQueue(Runnable runnable) {
+        synchronized (this) {
+            if (pendingQueue == null) {
+                pendingQueue = new LinkedList();
+            }
+        }
         synchronized (pendingQueue) {
             pendingQueue.add(runnable);
         }
     }
 
-    protected Collection<Runnable> flushPending() {        
+    protected Collection<Runnable> flushPending() {
         synchronized (pendingQueue) {
             Collection<Runnable> result = new ArrayList<>(pendingQueue);
             pendingQueue.clear();
@@ -72,9 +76,7 @@ public abstract class AbstractListenerContainer<T> extends AbstractListenerOwner
 
     @Override
     public void resume() {
-        pendingQueue=new LinkedList();
+        pendingQueue = new LinkedList();
     }
-    
-    
-    
+
 }

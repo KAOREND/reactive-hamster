@@ -39,7 +39,7 @@ public class SetAttribute extends Attribute {
     }
 
     @Override
-    public HashSet get(BasicDBObject dataObject) {
+    public HashSet get(org.bson.Document dataObject) {
         ArrayList l = (ArrayList) dataObject.get(getName());
         if (l == null) {
             return new HashSet();
@@ -48,7 +48,7 @@ public class SetAttribute extends Attribute {
     }
 
     @Override
-    public void set(BasicDBObject dataObject, Object value) {
+    public void set(org.bson.Document dataObject, Object value) {
         HashSet set = (HashSet) value;
         if (set == null) {
             dataObject.remove(getName());

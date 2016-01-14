@@ -1,6 +1,7 @@
 
 package com.kaibla.hamster.persistence;
 
+import com.mongodb.client.gridfs.GridFSBucket;
 import com.mongodb.gridfs.GridFS;
 import java.io.Serializable;
 
@@ -11,5 +12,5 @@ import java.io.Serializable;
 public abstract class FileSystemProvider implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    public abstract GridFS getFileSystem();
+    public abstract GridFSBucket getFileSystem();
 }

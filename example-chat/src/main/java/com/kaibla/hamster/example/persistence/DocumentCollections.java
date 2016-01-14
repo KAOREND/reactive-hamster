@@ -1,7 +1,7 @@
 package com.kaibla.hamster.example.persistence;
 
 import com.kaibla.hamster.base.UIEngine;
-import com.mongodb.DB;
+import com.mongodb.client.MongoDatabase;
 
 /**
  * This class is beeing used to initialize our Collections and make them accessable.
@@ -24,7 +24,7 @@ public class DocumentCollections {
      * @param engine The UI Engine
      * @param db A MongoDB
      */
-    public static void init(UIEngine engine,DB db) {
+    public static void init(UIEngine engine,MongoDatabase db) {
         MESSAGES = new Messages(engine,db);
         USERS = new Users(engine,db);
     }

@@ -70,7 +70,7 @@ public class TableListModelTest extends MongoDBTest {
             mo.set(orderAttr, i);
             mo.writeToDatabase();
         }
-        BaseQuery orderQuery = new Query().addOrder(orderAttr, false);
+        BaseQuery orderQuery = new Query().addSortCriteria(orderAttr, false);
         int i = 0;
         for (Document mo : testTable.query(orderQuery)) {
             assertTrue(mo.get(orderAttr) == i);
@@ -107,7 +107,7 @@ public class TableListModelTest extends MongoDBTest {
         Document mo4 = testTable.createNew();
         mo4.set(orderAttr, 4);
         mo4.writeToDatabase();
-        BaseQuery orderQuery = new Query().addOrder(orderAttr, false);
+        BaseQuery orderQuery = new Query().addSortCriteria(orderAttr, false);
         QueryResultListModel testModel = testTable.query(container, orderQuery);
         List<Document> l1 = new ArrayList(testModel.get());
         final BooleanObject orderChanged=new BooleanObject(false);        

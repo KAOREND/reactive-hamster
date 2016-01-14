@@ -16,6 +16,8 @@ import com.kaibla.hamster.persistence.events.ListChangedEvent;
 import com.kaibla.hamster.persistence.attribute.Attribute;
 import com.kaibla.hamster.persistence.query.BaseQuery;
 import com.kaibla.hamster.collections.BalancedTree;
+import com.mongodb.Block;
+import com.mongodb.client.model.CountOptions;
 import java.io.Serializable;
 import java.util.SortedSet;
 import java.util.logging.Logger;
@@ -34,7 +36,7 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
         super(owner, model, query);
         this.table = table;
     }
-    
+
     private transient BalancedTree<Document> cachedList = null;
     private transient long lastStartIndex = -1;
     private transient long lastElements = -1;
@@ -162,15 +164,17 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
         lastStartIndex = startIndex;
         lastElements = elements;
 
-        DBCursor cursor = table.getCollection().find(query.getQuery()).
-                skip((int) startIndex).limit((int) (elements));
-        while (cursor.hasNext()) {
-            BasicDBObject dbObject = (BasicDBObject) cursor.next();
-            Document o = table.getEntityForMongo(dbObject);
-            if (query.isInQuery(o)) {
-                addToCache(o);
-            }
-        }
+        table.getCollection().find(query.getQuery()).
+                skip((int) startIndex).limit((int) (elements)).forEach(new Block<org.bson.Document>() {
+
+                    @Override
+                    public void apply(org.bson.Document dbObject) {
+                        Document o = table.getEntityForMongo(dbObject);
+                        if (query.isInQuery(o)) {
+                            addToCache(o);
+                        }
+                    }
+                });
         return cachedList;
     }
 
@@ -180,15 +184,17 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
             return cachedList;
         }
         initTreeSet();
-        DBCursor cursor = table.getCollection().find(query.getQuery());
-        while (cursor.hasNext()) {
-            BasicDBObject dbObject = (BasicDBObject) cursor.next();
-            String id = "" + dbObject.get("_id");
-            Document o = table.getEntityForMongo(dbObject);
-            if (query.isInQuery(o)) {
-                addToCache(o);
+        table.getCollection().find(query.getQuery()).forEach(new Block<org.bson.Document>() {
+
+            @Override
+            public void apply(org.bson.Document dbObject) {
+                String id = "" + dbObject.get("_id");
+                Document o = table.getEntityForMongo(dbObject);
+                if (query.isInQuery(o)) {
+                    addToCache(o);
+                }
             }
-        }
+        });
         return cachedList;
     }
 
@@ -200,9 +206,9 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
 
     @Override
     public long getSize(int max) {
-        DBCursor cursor = table.getCollection().find(query.getQueryPartOnly()).
-                limit(max);
-        return cursor.size();
+        CountOptions co=new CountOptions();
+        co.limit(max);
+        return table.getCollection().count(query.getQueryPartOnly());
     }
 
     public Object prepareResume(HamsterEngine engine) {

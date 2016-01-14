@@ -12,6 +12,7 @@ import com.kaibla.hamster.components.defaultcomponent.DefaultComponent;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.attribute.StringAttribute;
 import com.kaibla.hamster.ui.test.UITest;
+import com.mongodb.client.gridfs.GridFSBuckets;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class ResumeTest extends UITest implements Serializable {
         c.m=mo;
         c.test="test";
         page.addComponent(c);
-        testUIEngine.initDB(db,new GridFS(db));
+        testUIEngine.initDB(db,GridFSBuckets.create(db));
         testUIEngine.persistPage(page);
         HamsterPage p2= testUIEngine.resumePage( page.getId());
         assertNotNull(p2);

@@ -10,6 +10,7 @@ import com.kaibla.hamster.persistence.model.DocumentCollection;
 import com.kaibla.hamster.persistence.attribute.DateAttribute;
 import com.kaibla.hamster.persistence.attribute.PasswordAttribute;
 import com.kaibla.hamster.persistence.attribute.StringAttribute;
+import com.mongodb.client.MongoDatabase;
 import java.util.Locale;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
@@ -30,7 +31,7 @@ public class Users extends DocumentCollection {
     public final static DateAttribute LAST_LOGIN = new DateAttribute(Users.class, "last_login");
 
   
-    public Users(UIEngine engine, DB db,String name) {
+    public Users(UIEngine engine, MongoDatabase db,String name) {
         super(engine, db,name);       
         if (DEFAULT_USER == null) {
             //create new default user

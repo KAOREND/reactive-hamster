@@ -10,12 +10,12 @@ import static java.util.logging.Logger.getLogger;
  *
  * @author kai
  */
-public class Order implements Serializable {
+public class SortCriteria implements Serializable {
 
     Attribute attr;
     boolean descending;
 
-    public Order(Attribute attr, boolean descending) {
+    public SortCriteria(Attribute attr, boolean descending) {
         this.attr = attr;
         this.descending = descending;
     }
@@ -54,8 +54,8 @@ public class Order implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (o instanceof Order) {
-            Order order = (Order) o;
+        if (o instanceof SortCriteria) {
+            SortCriteria order = (SortCriteria) o;
             return order.descending == descending && order.attr == attr;
         } else {
             return false;
@@ -72,6 +72,6 @@ public class Order implements Serializable {
         return hashCode;
     }
 
-    private static final Logger LOG = getLogger(Order.class.getName());
+    private static final Logger LOG = getLogger(SortCriteria.class.getName());
 
 }

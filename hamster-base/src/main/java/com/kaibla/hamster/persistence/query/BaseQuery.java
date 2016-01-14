@@ -2,9 +2,9 @@ package com.kaibla.hamster.persistence.query;
 
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.attribute.Attribute;
-import com.mongodb.BasicDBObject;
 import java.io.Serializable;
 import java.util.Comparator;
+import org.bson.conversions.Bson;
 
 /**
  *
@@ -12,9 +12,9 @@ import java.util.Comparator;
  */
 public interface BaseQuery extends Comparator, Serializable {
 
-    public abstract BasicDBObject getQuery();
+    public abstract Bson getQuery();
 
-    public abstract BasicDBObject getQueryPartOnly();
+    public abstract Bson getQueryPartOnly();
 
     public abstract boolean isInQuery(Document o);
 
