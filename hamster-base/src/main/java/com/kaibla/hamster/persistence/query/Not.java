@@ -12,6 +12,12 @@ public class Not extends Condition {
 
     Condition condition;
 
+    public Not(Condition condition) {
+        this.condition = condition;
+    }
+    
+    
+
     @Override
     public boolean isInCondition(Document o) {
         return !condition.isInCondition(o);

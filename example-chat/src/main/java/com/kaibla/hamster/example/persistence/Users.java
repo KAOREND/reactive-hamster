@@ -3,7 +3,7 @@
 package com.kaibla.hamster.example.persistence;
 
 import com.kaibla.hamster.base.UIEngine;
-import com.kaibla.hamster.persistence.query.Query;
+import static com.kaibla.hamster.persistence.query.Conditions.*;
 import com.mongodb.client.MongoDatabase;
 
 /**
@@ -29,7 +29,7 @@ public class Users extends com.kaibla.hamster.data.Users {
      * @return true if a user with the hashed Password and the given user name exists 
      */
     public boolean verifyUser(String userName,String hashedPassword) {
-        return exists(new Query().equals(NAME, userName).equals(PASSWORD, hashedPassword));
+        return exists(createQuery(eq(NAME,userName),eq(PASSWORD,hashedPassword)));
     }
     
 }

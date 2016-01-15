@@ -110,12 +110,13 @@ public class Query implements BaseQuery {
         return conditions;
     }
 
-    public void addCondition(Condition condition) {
+    public Query addCondition(Condition condition) {
         conditions.add(condition);
         if (condition instanceof And) {
             And and = (And) condition;
             addEventFilter(and);
         }
+        return this;
     }
 
     private void addEventFilter(And and) {
