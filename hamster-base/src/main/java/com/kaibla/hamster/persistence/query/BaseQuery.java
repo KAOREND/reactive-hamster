@@ -13,8 +13,8 @@ import org.bson.conversions.Bson;
 public interface BaseQuery extends Comparator, Serializable {
 
     public abstract Bson getQuery();
-
-    public abstract Bson getQueryPartOnly();
+    
+    public abstract Bson getSort();
 
     public abstract boolean isInQuery(Document o);
 

@@ -19,17 +19,12 @@ import org.bson.conversions.Bson;
  */
 public class Query implements BaseQuery {
 
-    transient BsonDocument wholeQuery;
-    transient Bson query;
-    transient BsonDocument orderBy;
     List<Condition> conditions = new LinkedList<>();
     List<SortCriteria> sortCriterias = new LinkedList<>();
     List<Equals> eventFilterConditions = new ArrayList<>();
 
     public Query() {
-        wholeQuery = new BsonDocument();
-        query = new org.bson.Document();
-        orderBy = new BsonDocument();
+      
     }
 
     public List<Equals> getEventFilter() {
@@ -85,26 +80,6 @@ public class Query implements BaseQuery {
         return this;
     }
 
-    private void buildQuery() {
-        query = new BsonDocument();
-        wholeQuery = new BsonDocument();
-        orderBy = new BsonDocument();
-        if (conditions.size() > 1) {
-            And and = new And(conditions);
-            query = and.buildQuery();
-        } else if (conditions.size() == 1) {
-            query = conditions.get(0).buildQuery();
-        }
-        for (SortCriteria sortCriteria : sortCriterias) {
-            if (sortCriteria.isDescending()) {
-                orderBy.put(sortCriteria.getAttribute().getName(), new BsonInt32(-1));
-            } else {
-                orderBy.put(sortCriteria.getAttribute().getName(), new BsonInt32(1));
-            }
-        }
-        wholeQuery.put("$query", query.toBsonDocument(null, MongoClient.getDefaultCodecRegistry()));
-        wholeQuery.put("$orderby", orderBy);
-    }
 
     public List<Condition> getConditions() {
         return conditions;
@@ -131,15 +106,27 @@ public class Query implements BaseQuery {
 
     @Override
     public Bson getQuery() {
-        buildQuery();
-        LOG.fine("building query: " + wholeQuery.toJson());
-        return wholeQuery;
+        Bson query = new BsonDocument();
+        if (conditions.size() > 1) {
+            And and = new And(conditions);
+            query = and.buildQuery();
+        } else if (conditions.size() == 1) {
+            query = conditions.get(0).buildQuery();
+        }
+        return query;
     }
 
     @Override
-    public Bson getQueryPartOnly() {
-        buildQuery();
-        return query;
+    public Bson getSort() {
+        BsonDocument orderBy = new BsonDocument();
+        for (SortCriteria sortCriteria : sortCriterias) {
+            if (sortCriteria.isDescending()) {
+                orderBy.put(sortCriteria.getAttribute().getName(), new BsonInt32(-1));
+            } else {
+                orderBy.put(sortCriteria.getAttribute().getName(), new BsonInt32(1));
+            }
+        }
+        return orderBy;
     }
 
     @Override

@@ -124,6 +124,7 @@ public abstract class UIEngine extends HamsterEngine {
     public void initDB(MongoDatabase db, GridFSBucket gridFS) {
         this.gridFS = gridFS;
         persistedPages = new PersistedPages(engine, db, gridFS);
+        super.initDB(db);
     }
 
     public static UIEngine getEngine() {
@@ -630,9 +631,9 @@ public abstract class UIEngine extends HamsterEngine {
                     //check if obj is the same in the cache of the corresponding table.
                     Document e = (Document) obj;
                     if (!e.isIsDummy() && !e.isNew()) {
-                        Document fromCache = e.getTable().getById(e.getId());
+                        Document fromCache = e.getCollection().getById(e.getId());
                         if (fromCache != e) {
-                            LOG.info("UIEngine:debugMemory: found entity which is not the same as in cache table:" + e.getTable().getTableName() + "  id: " + e.getId() + " path: " + nextEntry);
+                            LOG.info("UIEngine:debugMemory: found entity which is not the same as in cache table:" + e.getCollection().getCollectionName() + "  id: " + e.getId() + " path: " + nextEntry);
                         }
                     }
                 }

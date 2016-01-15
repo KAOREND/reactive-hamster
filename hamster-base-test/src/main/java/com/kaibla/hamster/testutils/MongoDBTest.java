@@ -31,17 +31,18 @@ public class MongoDBTest extends BaseTest {
     public void setUp() throws UnknownHostException {
 
         MongoClient mongo = new MongoClient();
-        db = mongo.getDatabase("test");
+        db = mongo.getDatabase("mytest");
         db.drop();
-        db = mongo.getDatabase("test");
+        db = mongo.getDatabase("mytest");
         testEngine = createTestEngine();
         testEngine.init();        
         testTable = new DocumentCollection(testEngine, db, "testTable") {
             @Override
-            public String getTableName() {
+            public String getCollectionName() {
                 return "testTable";
             }
         };
+        testEngine.initDB(db);
     }
 
     @After

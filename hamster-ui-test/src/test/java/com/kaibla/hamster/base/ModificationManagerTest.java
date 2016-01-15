@@ -142,7 +142,7 @@ public class ModificationManagerTest extends UITest {
         page.addComponent(d);
 
         final StringAttribute testAttribute = new StringAttribute(testTable.getClass(), "test");
-        final IntegerAttribute orderAttribute = new IntegerAttribute(testTable.getClass(), "test");
+        final IntegerAttribute orderAttribute = new IntegerAttribute(testTable.getClass(), "testint");
 
         for (int i = 0; i < 2; i++) {
             Document t = testTable.createNew();

@@ -94,7 +94,7 @@ public class TableListModelTest extends MongoDBTest {
         AbstractListenerContainer container=createTestListenerContainer(testEngine);
    
         
-        IntegerAttribute orderAttr = new IntegerAttribute(testTable.getClass(),"order");
+        IntegerAttribute orderAttr = new IntegerAttribute(testTable.getClass(),"order2");
         Document mo1 = testTable.createNew();
         mo1.set(orderAttr, 1);
         mo1.writeToDatabase();

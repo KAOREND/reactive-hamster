@@ -56,7 +56,7 @@ public class Localizer {
     }
 
     public static String getLocalizedAttrString(Attribute attr, Locale locale) {
-        String key = attr.getTableClass().getName() + "." + attr.getName();
+        String key = attr.getCollectionClass().getName() + "." + attr.getName();
         return getLocalizedString(key, locale);
     }
 

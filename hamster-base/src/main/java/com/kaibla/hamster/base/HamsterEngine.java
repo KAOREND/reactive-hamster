@@ -4,6 +4,9 @@
 package com.kaibla.hamster.base;
 
 import com.kaibla.hamster.monitoring.AutomaticMonitoring;
+import com.kaibla.hamster.persistence.events.EventQueue;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.gridfs.GridFSBucket;
 import java.io.Serializable;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.Thread.sleep;
@@ -37,6 +40,7 @@ public abstract class HamsterEngine implements Runnable, Serializable {
     private boolean destroyed = false;
     private boolean init = false;
     private static HamsterEngine engine = null;
+    private EventQueue  eventQueue = null;
 
     /**
      * Thread Local for collecting all pages which need to be updated after this session.
@@ -46,6 +50,14 @@ public abstract class HamsterEngine implements Runnable, Serializable {
     public synchronized void init() {
         init = true;
         engine = this;
+    }
+    
+     public void initDB(MongoDatabase db) {
+        eventQueue = new EventQueue(db, this);
+    }
+
+    public EventQueue getEventQueue() {
+        return eventQueue;
     }
 
     public boolean isInitilized() {

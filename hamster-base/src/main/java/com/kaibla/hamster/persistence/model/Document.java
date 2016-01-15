@@ -21,7 +21,7 @@ import com.kaibla.hamster.persistence.attribute.SetAttribute;
 import com.kaibla.hamster.persistence.attribute.StringAttribute;
 import com.kaibla.hamster.collections.StringSource;
 import com.mongodb.WriteConcern;
-import com.mongodb.client.model.Filters;
+import static com.mongodb.client.model.Filters.*;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.Collections;
@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
+import org.bson.BsonInt32;
 import org.bson.types.ObjectId;
 
 /**
@@ -41,13 +42,14 @@ import org.bson.types.ObjectId;
  */
 public class Document<T extends DocumentCollection> extends AttributeFilteredModel implements Serializable {
 
-    DocumentCollection table;
+    DocumentCollection collection;
     String id;
     private boolean isNew = false;
     transient org.bson.Document dataObject;
 //    private transient boolean original=false;
     private final transient Set<Attribute> changedAttributes = Collections.newSetFromMap(new ConcurrentHashMap());
     private boolean isDummy = false;
+    public final static String REVISION = "rev";
 
     public Document(HamsterEngine engine, DocumentCollection table, org.bson.Document dataObject) {
         super(engine);
@@ -57,8 +59,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             throw new IllegalArgumentException("dataObject must not be null");
         }
         this.dataObject = dataObject;
-        this.table = table;
-//        tableName = table.getTableName();
+        this.collection = table;
+//        tableName = collection.getCollectionName();
     }
 
     public void setIsDummy(boolean isDummy) {
@@ -69,8 +71,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         return isDummy;
     }
 
-    public DocumentCollection getTable() {
-        return table;
+    public DocumentCollection getCollection() {
+        return collection;
     }
 
     public void valueChanged(Attribute attr) {
@@ -87,7 +89,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     @Override
     public synchronized void destroy() {
         super.destroy();
-        table.destroyInCache(this);
+        collection.destroyInCache(this);
     }
 
     public StringSource getStringSource(final Attribute attr) {
@@ -285,22 +287,41 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public synchronized void writeToDatabase(boolean fireEvents, WriteConcern writeConcern) {
-//      LOG.info("write to collection  "+table.getCollection()+"  insert "+isNew);
+//      LOG.info("write to collection  "+collection.getCollection()+"  insert "+isNew);
 //       LOG.info("       "+dataObject);        
         if (isNew) {
-            table.getCollection().withWriteConcern(writeConcern).insertOne(dataObject);
+            dataObject.append(REVISION, 1);
+            collection.getCollection().withWriteConcern(writeConcern).insertOne(dataObject);
             isNew = false;
             if (fireEvents) {
                 DataObjectCreatedEvent event = new DataObjectCreatedEvent(this, this);
                 this.fireChangedEvent(event);
-                table.fireChangedEvent(event);
-                table.fireEvents(event);
+                collection.fireChangedEvent(event);
+                collection.fireEvents(event);
+                getEngine().getEventQueue().pushEvent(event);
             }
-            table.addToCache(this);
+            collection.addToCache(this);
         } else {
-            table.addToCache(this);
-            table.getCollection().withWriteConcern(writeConcern).
-                    replaceOne(Filters.eq("_id", dataObject.get("_id")), dataObject);
+            collection.addToCache(this);
+            if (dataObject.containsKey(REVISION)) {
+                int oldRevision = dataObject.getInteger(REVISION);
+                dataObject.put(REVISION, oldRevision + 1);
+                Object old = collection.getCollection().withWriteConcern(writeConcern).
+                        findOneAndReplace(
+                                and(
+                                        eq("_id", dataObject.get("_id")),
+                                        eq(REVISION, new BsonInt32(oldRevision))
+                                ), dataObject);
+                if (old == null) {
+                    //could not find orinal version, so our version of the document is stalled
+                    throw new OptimisticLockException(this);
+                }
+            } else {
+                //add revision to legacy documents
+                dataObject.put(REVISION, 1);
+                collection.getCollection().withWriteConcern(writeConcern).
+                        replaceOne(eq("_id", dataObject.get("_id")), dataObject);
+            }
             if (fireEvents) {
                 fireChangedEvent();
             }
@@ -316,17 +337,18 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     public void fireChangedEvent() {
         DataObjectChangedEvent event = new DataObjectChangedEvent(this, new HashSet(changedAttributes));
         this.fireChangedEvent(event);
-        table.fireChangedEvent(event);
-        table.fireEvents(event);
+        collection.fireChangedEvent(event);
+        collection.fireEvents(event);
+        getEngine().getEventQueue().pushEvent(event);
     }
 
     public synchronized void delete() {
-        table.getCollection().deleteOne(dataObject);
+        collection.getCollection().deleteOne(dataObject);
         DataObjectDeletedEvent event = new DataObjectDeletedEvent(this, this);
-        table.fireChangedEvent(event);
-        table.fireEvents(event);
+        collection.fireChangedEvent(event);
+        collection.fireEvents(event);
         this.fireChangedEvent(event);
-
+        getEngine().getEventQueue().pushEvent(event);
         destroy();
     }
 
@@ -335,14 +357,14 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public Document createClone() {
-        org.bson.Document cloneData = table.getByIdFromDatabase(getId()).getDataObject();
-        Document clone = new Document(table.getEngine(), table, cloneData);
+        org.bson.Document cloneData = collection.getByIdFromDatabase(getId()).getDataObject();
+        Document clone = new Document(collection.getEngine(), collection, cloneData);
         return clone;
     }
 
     public Document createClone(Schema schema, Document user, boolean temp) {
         org.bson.Document cloneData = new org.bson.Document();
-        Document clone = new Document(table.getEngine(), table, cloneData);
+        Document clone = new Document(collection.getEngine(), collection, cloneData);
         clone.setIsDummy(temp);
         clone.merge(this, schema, user, temp);
         return clone;
@@ -368,7 +390,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
 //    public MongoObject getPreviousVersion() {
-//        MongoObject p= new MongoObject(table.getEngine(), table, new org.bson.Document());
+//        MongoObject p= new MongoObject(collection.getEngine(), collection, new org.bson.Document());
 //        p.dataObject.putAll(dataObject.toMap());
 //        for(Attribute attr : changedAttributes.keySet() ) {
 //            p.set(attr, changedAttributes.get(attr));
@@ -376,37 +398,37 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 //        return p;
 //    }
 //    public Resumeable prepareStore(HamsterEngine engine) {     
-//        return new PlaceHolder(getId(),table.getTableName());
+//        return new PlaceHolder(getId(),collection.getCollectionName());
 //    }
 //
 //    public Object prepareResume(HamsterEngine engine) {
-//        table = DocumentCollection.getByName(tableName);
-//        if(table == null) {
-//            System.err.println("table is null "+tableName);
+//        collection = DocumentCollection.getByName(tableName);
+//        if(collection == null) {
+//            System.err.println("collection is null "+tableName);
 //        }
-//        MongoObject mo = table.getById(id);
+//        MongoObject mo = collection.getById(id);
 //        if(!mo.original || mo.dataObject == null) {
-//             System.err.println("table contains non original mo "+tableName);
+//             System.err.println("collection contains non original mo "+tableName);
 //        }
 //        return mo;
 //    }
 //     private Object readResolve() throws ObjectStreamException  {
-////        table = DocumentCollection.getByName(tableName);
-////        MongoObject mo = table.getById(id);
+////        collection = DocumentCollection.getByName(tableName);
+////        MongoObject mo = collection.getById(id);
 ////        if(!mo.original || mo.dataObject == null) {
-////             System.err.println("table contains non original mo "+tableName);
+////             System.err.println("collection contains non original mo "+tableName);
 ////        }
-//        return table.getById(id);
+//        return collection.getById(id);
 //    }
     public Object prepareResume(HamsterEngine engine) {
-        return table.getById(id);
+        return collection.getById(id);
     }
 
     protected Object writeReplace() {
-//        if(table.getByIdFromDatabase(getId()) == null) {
+//        if(collection.getByIdFromDatabase(getId()) == null) {
 //            throw new IllegalStateException("cannot store mongobject that is not in db");
 //        }
-        return new PlaceHolder(getId(), table.getTableName(), isDummy);
+        return new PlaceHolder(getId(), collection.getCollectionName(), isDummy);
     }
 
     public static class PlaceHolder implements Serializable {

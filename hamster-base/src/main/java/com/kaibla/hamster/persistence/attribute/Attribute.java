@@ -2,6 +2,7 @@ package com.kaibla.hamster.persistence.attribute;
 
 import com.mongodb.BasicDBObject;
 import java.io.Serializable;
+import java.util.HashMap;
 
 /**
  *
@@ -11,15 +12,31 @@ public abstract class Attribute implements Serializable {
 
     private String name;
     boolean optional;
-    private final Class tableClass;
-
-    public Attribute(Class tableClass, String name) {
+    private final Class collectionClass;
+    private static HashMap<String,Attribute> attributeMap = new HashMap();
+    private String completeName;
+    public Attribute(Class collectionClass, String name) {
         this.name = name;
-        this.tableClass = tableClass;
+        this.collectionClass = collectionClass;
+        completeName=collectionClass.getName()+name;
+        if(attributeMap.containsKey(completeName)) {
+            throw new RuntimeException("duplicate attribute instantiated "+completeName);
+        }
+        attributeMap.put(completeName,this);
     }
 
-    public Class getTableClass() {
-        return tableClass;
+    public String getCompleteName() {
+        return completeName;
+    }
+    
+    
+    
+    public static Attribute getAttribute(String completeName) {
+        return attributeMap.get(completeName);
+    }
+
+    public Class getCollectionClass() {
+        return collectionClass;
     }
 
     /**

@@ -195,7 +195,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         return false;
     }
 
-    public String getTableName() {
+    public String getCollectionName() {
         return tableName;
     }
 
@@ -325,6 +325,20 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         }
         return new Document(getEngine(), this, object);
     }
+    
+    public Document reloadDocument(String id) {
+        synchronized(map) {
+            Document doc = map.get(id);
+            if(doc != null) {
+                org.bson.Document object = (org.bson.Document) collection.
+                find(new org.bson.Document("_id", new ObjectId(id))).limit(1).first();
+                doc.dataObject = object;
+                return doc;
+            } else {
+                return getById(id);
+            }
+        }
+    }
 
     /**
      * Fires an event on all objects in the cache, which fulfill the query
@@ -368,7 +382,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
             } else {
                 keys.append(a.getName(), 1);
             }
-            LOG.log(Level.INFO, "ensured Index on {0}  {1}", new Object[]{getTableName(), a.
+            LOG.log(Level.INFO, "ensured Index on {0}  {1}", new Object[]{getCollectionName(), a.
                 getName()});
         }
         keys.append("unique", unique);
@@ -407,12 +421,12 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public long count(BaseQuery query) {
-        return collection.count(query.getQueryPartOnly());
+        return collection.count(query.getQuery());
     }
 
     public List<Document> query(final BaseQuery query) {
         final ArrayList list = new ArrayList(16);
-        collection.find(query.getQuery()).forEach(new Block<org.bson.Document>() {
+        collection.find(query.getQuery()).sort(query.getSort()).forEach(new Block<org.bson.Document>() {
             @Override
             public void apply(org.bson.Document dbObject) {
                 String id = "" + dbObject.get("_id");
@@ -432,7 +446,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public void forEach(final BaseQuery query, final Block<Document> block) {
-        collection.find(query.getQuery()).forEach(new Block<org.bson.Document>() {
+        collection.find(query.getQuery()).sort(query.getSort()).forEach(new Block<org.bson.Document>() {
 
             @Override
             public void apply(org.bson.Document dbObject) {
@@ -450,7 +464,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public Iterable<Document> queryIterable(final BaseQuery query) {
-        final MongoCursor cursor = collection.find(query.getQuery()).iterator();
+        final MongoCursor cursor = collection.find(query.getQuery()).sort(query.getSort()).iterator();
         return new Iterable<Document>() {
 
             @Override
@@ -512,7 +526,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public Object prepareResume(HamsterEngine engine) {
-        return getByName(getTableName());
+        return getByName(getCollectionName());
     }
 
     protected Object readResolve() {
@@ -522,7 +536,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
 
     protected Object writeReplace() {
 //        LOG.info("MongoTable writeReplace");
-        return new TablePlaceHolder(getTableName());
+        return new TablePlaceHolder(getCollectionName());
     }
 
     public void deleteContent() {

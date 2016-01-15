@@ -64,7 +64,7 @@ public class SetAttributeTest extends MongoDBTest {
     @Test
     public void testSetQuery() {
         Document testObject = testTable.createNew();
-        SetAttribute setAttribute = new SetAttribute(testTable.getClass(), "test_set");
+        SetAttribute setAttribute = new SetAttribute(testTable.getClass(), "test_set2");
         HashSet testSet = new HashSet();
         testSet.add("apple");
         testSet.add("banana");

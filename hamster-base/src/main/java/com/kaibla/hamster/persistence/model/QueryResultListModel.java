@@ -47,7 +47,7 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
 
     @Override
     public long getSize() {
-        long count = table.getCollection().count(query.getQueryPartOnly());
+        long count = table.getCollection().count(query.getQuery());
         return count;
     }
 
@@ -92,7 +92,7 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
                                 }
 //                    System.out.
 //                            println("tableListModel test order changed: " + orderChanged + "   " + table.
-//                            getTableName()+"  query: "+query+" mo "+mo);
+//                            getCollectionName()+"  query: "+query+" mo "+mo);
                                 if (orderChanged) {
                                     cachedList.remove(mo);
                                     addToCache(mo);
@@ -164,7 +164,7 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
         lastStartIndex = startIndex;
         lastElements = elements;
 
-        table.getCollection().find(query.getQuery()).
+        table.getCollection().find(query.getQuery()).sort(query.getSort()).
                 skip((int) startIndex).limit((int) (elements)).forEach(new Block<org.bson.Document>() {
 
                     @Override
@@ -184,7 +184,7 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
             return cachedList;
         }
         initTreeSet();
-        table.getCollection().find(query.getQuery()).forEach(new Block<org.bson.Document>() {
+        table.getCollection().find(query.getQuery()).sort(query.getSort()).forEach(new Block<org.bson.Document>() {
 
             @Override
             public void apply(org.bson.Document dbObject) {
@@ -208,7 +208,7 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
     public long getSize(int max) {
         CountOptions co=new CountOptions();
         co.limit(max);
-        return table.getCollection().count(query.getQueryPartOnly());
+        return table.getCollection().count(query.getQuery());
     }
 
     public Object prepareResume(HamsterEngine engine) {
