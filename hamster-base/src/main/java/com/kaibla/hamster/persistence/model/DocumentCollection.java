@@ -237,7 +237,12 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
             Document t = map.get(obj.getId());
             return t == obj;
         }
-
+    }
+    
+    public boolean isInCache(String id) {
+        synchronized (map) {
+            return map.contains(id);
+        }
     }
 
     public Document getEntityForMongo(org.bson.Document dbObject) {

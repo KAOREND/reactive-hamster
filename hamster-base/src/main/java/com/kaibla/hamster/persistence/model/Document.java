@@ -60,7 +60,9 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         }
         this.dataObject = dataObject;
         this.collection = table;
-//        tableName = collection.getCollectionName();
+        if(this.collection.isInCache(getId())) {
+             throw new IllegalStateException("detected entity which has two instances " + getId() + " in  " + collection.getCollectionName());         
+        }
     }
 
     public void setIsDummy(boolean isDummy) {
