@@ -337,7 +337,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
             if(doc != null) {
                 org.bson.Document object = (org.bson.Document) collection.
                 find(new org.bson.Document("_id", new ObjectId(id))).limit(1).first();
-                doc.dataObject = object;
+                doc.setDataObject(object);
                 return doc;
             } else {
                 return getById(id);

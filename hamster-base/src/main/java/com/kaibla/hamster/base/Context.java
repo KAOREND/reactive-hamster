@@ -1,6 +1,7 @@
 package com.kaibla.hamster.base;
 
 import com.kaibla.hamster.persistence.model.Document;
+import com.kaibla.hamster.persistence.transactions.Transaction;
 import java.util.HashMap;
 import java.util.Locale;
 import static java.util.Locale.getDefault;
@@ -36,9 +37,18 @@ public class Context {
         return getContext().listenerContainer;
     }
     
+    public static Transaction getTransaction() {
+        return getContext().transaction;
+    }
+    
+    public static void setTransaction(Transaction transaction) {
+        getContext().transaction=transaction;
+    }
+    
     
     private static class InternalContext {
-        AbstractListenerContainer listenerContainer;        
+        AbstractListenerContainer listenerContainer;   
+        Transaction transaction;
     }
     
     private static final Logger LOG = getLogger(Context.class.getName());

@@ -45,6 +45,10 @@ public abstract class Attribute implements Serializable {
     public String getName() {
         return name;
     }
+    
+    public String getShadowName() {
+        return "_"+getName();
+    }
 
     /**
      * @param name the name to set
@@ -60,8 +64,22 @@ public abstract class Attribute implements Serializable {
     public Object get(org.bson.Document dataObject) {
         return dataObject.get(this.getName());
     }
+   
+    public void createShadowCopy(org.bson.Document dataObject) {
+         dataObject.put(getShadowName(), dataObject.get(this.getName()));
+    }
+    
+    public void deleteShadowCopy(org.bson.Document dataObject) {
+         dataObject.remove(getShadowName());
+    }
+    
+    public void revertChanges(org.bson.Document dataObject) {
+        dataObject.put(getShadowName(), dataObject.get(this.getName()));
+        deleteShadowCopy(dataObject);
+    }
 
     public void set(org.bson.Document dataObject, Object value) {
+        createShadowCopy(dataObject);
         dataObject.put(getName(), value);
     }
 }

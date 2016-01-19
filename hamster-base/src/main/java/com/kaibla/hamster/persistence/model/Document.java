@@ -2,6 +2,7 @@ package com.kaibla.hamster.persistence.model;
 
 import com.kaibla.hamster.base.AbstractListenerOwner;
 import com.kaibla.hamster.base.ChangedListener;
+import com.kaibla.hamster.base.Context;
 import com.kaibla.hamster.base.HamsterEngine;
 import com.kaibla.hamster.persistence.events.DataObjectChangedEvent;
 import com.kaibla.hamster.persistence.events.DataObjectCreatedEvent;
@@ -24,10 +25,14 @@ import com.mongodb.WriteConcern;
 import static com.mongodb.client.model.Filters.*;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -45,11 +50,13 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     DocumentCollection collection;
     String id;
     private boolean isNew = false;
-    transient org.bson.Document dataObject;
-//    private transient boolean original=false;
-    private final transient Set<Attribute> changedAttributes = Collections.newSetFromMap(new ConcurrentHashMap());
+
+    private final transient DocumentData data;
+
     private boolean isDummy = false;
     public final static String REVISION = "rev";
+    
+     public final static String TRANSACTION = "trans";
 
     public Document(HamsterEngine engine, DocumentCollection table, org.bson.Document dataObject) {
         super(engine);
@@ -58,10 +65,11 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         if (dataObject == null) {
             throw new IllegalArgumentException("dataObject must not be null");
         }
-        this.dataObject = dataObject;
+        data = new DocumentData();
+        data.dataObject = dataObject;
         this.collection = table;
-        if(this.collection.isInCache(getId())) {
-             throw new IllegalStateException("detected entity which has two instances " + getId() + " in  " + collection.getCollectionName());         
+        if (this.collection.isInCache(getId())) {
+            throw new IllegalStateException("detected entity which has two instances " + getId() + " in  " + collection.getCollectionName());
         }
     }
 
@@ -78,14 +86,14 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public void valueChanged(Attribute attr) {
-        if (changedAttributes.contains(attr)) {
+        if (getData().changedAttributes.contains(attr)) {
             LOG.log(Level.INFO, "attribute changed twice in one transaction {0}", attr);
         }
-        changedAttributes.add(attr);
+        getData().changedAttributes.add(attr);
     }
 
     public Set<Attribute> getChangedAttributes() {
-        return changedAttributes;
+        return getData().changedAttributes;
     }
 
     @Override
@@ -104,23 +112,23 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public Object get(Attribute attr) {
-        return attr.get(dataObject);
+        return attr.get(getDataObject());
     }
 
     public Object get(ObjectAttribute attr) {
-        return attr.get(dataObject);
+        return attr.get(getDataObject());
     }
 
     public boolean get(BooleanAttribute attr) {
-        return dataObject.getBoolean(attr.getName(), attr.getDefaultValue());
+        return getDataObject().getBoolean(attr.getName(), attr.getDefaultValue());
     }
 
     public Double get(DoubleAttribute attr) {
-        return dataObject.getDouble(attr.getName());
+        return getDataObject().getDouble(attr.getName());
     }
 
     public String get(StringAttribute attr) {
-        String value = dataObject.getString(attr.getName());
+        String value = getDataObject().getString(attr.getName());
         if (value != null && attr.isCaseInsensitive()) {
             return value.toLowerCase();
         }
@@ -128,42 +136,42 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public long get(LongAttribute attr) {
-        return dataObject.getLong(attr.getName());
+        return getDataObject().getLong(attr.getName());
     }
 
     public int get(IntegerAttribute attr) {
         try {
-            return dataObject.getInteger(attr.getName(), attr.getDefaultValue());
+            return getDataObject().getInteger(attr.getName(), attr.getDefaultValue());
         } catch (NullPointerException e) {
             return 0;
         }
     }
 
     public Document get(DocumentReferenceAttribute attr, AbstractListenerOwner owner) {
-        return attr.getTable().getById(dataObject.getString(attr.getName()), owner);
+        return attr.getTable().getById(getDataObject().getString(attr.getName()), owner);
     }
 
     public Document get(DocumentReferenceAttribute attr) {
-        return attr.getTable().getById(dataObject.getString(attr.getName()));
+        return attr.getTable().getById(getDataObject().getString(attr.getName()));
     }
 
     public Date get(DateAttribute attr) {
-        return (Date) dataObject.get(attr.getName());
+        return (Date) getDataObject().get(attr.getName());
     }
 
     public String get(FileAttribute attr) {
-        return dataObject.getString(attr.getName());
+        return getDataObject().getString(attr.getName());
     }
 
     public HashSet get(SetAttribute attr) {
-        return attr.get(dataObject);
+        return attr.get(getDataObject());
     }
 
     public Document set(Attribute attr, Object value) {
         Object oldValue = get(attr);
         if (oldValue != value || (value != null && !value.equals(oldValue))) {
             valueChanged(attr);
-            attr.set(dataObject, value);
+            attr.set(getDataObject(), value);
         }
         return this;
     }
@@ -172,15 +180,16 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         Object oldValue = get(attr);
         if (oldValue != value || (value != null && value.equals(oldValue))) {
             valueChanged(attr);
-            attr.set(dataObject, value);
+            attr.set(getDataObject(), value);
         }
         return this;
     }
 
     public Document set(BooleanAttribute attr, boolean value) {
-        if (!dataObject.containsKey(attr.getName()) || value != get(attr)) {
+        org.bson.Document localData = getDataObject();
+        if (!localData.containsKey(attr.getName()) || value != get(attr)) {
             valueChanged(attr);
-            dataObject.put(attr.getName(), value);
+            localData.put(attr.getName(), value);
         }
 //        System.out.
 //                println("mongoObject set boolean in: " + value + " out:" + get(attr) + " attr " + attr.
@@ -190,42 +199,42 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     public Document set(DoubleAttribute attr, double value) {
         valueChanged(attr);
-        dataObject.put(attr.getName(), value);
+        getDataObject().put(attr.getName(), value);
         return this;
     }
 
     public Document set(StringAttribute attr, String value) {
         valueChanged(attr);
         if (value == null) {
-            dataObject.remove(attr.getName());
+            getDataObject().remove(attr.getName());
         } else {
             if (attr.isCaseInsensitive()) {
                 value = value.toLowerCase();
             }
-            dataObject.put(attr.getName(), value);
+            getDataObject().put(attr.getName(), value);
         }
         return this;
     }
 
     public Document set(LongAttribute attr, long value) {
         valueChanged(attr);
-        dataObject.put(attr.getName(), value);
+        getDataObject().put(attr.getName(), value);
         return this;
     }
 
     public Document set(IntegerAttribute attr, int value) {
         valueChanged(attr);
-        dataObject.put(attr.getName(), value);
+        getDataObject().put(attr.getName(), value);
         return this;
     }
 
     public Document set(DocumentReferenceAttribute attr, Document value) {
         valueChanged(attr);
         if (value == null) {
-            dataObject.remove(attr.getName());
+            getDataObject().remove(attr.getName());
         } else {
             if (value != null) {
-                dataObject.put(attr.getName(), value.getId());
+                getDataObject().put(attr.getName(), value.getId());
             }
         }
         return this;
@@ -233,22 +242,22 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     public Document set(SetAttribute attr, HashSet set) {
         valueChanged(attr);
-        attr.set(dataObject, set);
+        attr.set(getDataObject(), set);
         return this;
     }
 
     public Document set(DateAttribute attr, Date value) {
         valueChanged(attr);
         if (value == null) {
-            dataObject.remove(attr.getName());
+            getDataObject().remove(attr.getName());
         } else {
-            dataObject.put(attr.getName(), value);
+            getDataObject().put(attr.getName(), value);
         }
         return this;
     }
 
     public boolean isFieldSet(Attribute attr) {
-        return dataObject.containsKey(attr.getName());
+        return getDataObject().containsKey(attr.getName());
     }
 
     public boolean isNew() {
@@ -269,7 +278,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public ObjectId getObjectId() {
-        return dataObject.getObjectId("_id");
+        return getDataObject().getObjectId("_id");
     }
 
     public String getId() {
@@ -290,10 +299,12 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     public synchronized void writeToDatabase(boolean fireEvents, WriteConcern writeConcern) {
 //      LOG.info("write to collection  "+collection.getCollection()+"  insert "+isNew);
-//       LOG.info("       "+dataObject);        
+//       LOG.info("       "+dataObject);      
+
+        org.bson.Document localData = getDataObject();
         if (isNew) {
-            dataObject.append(REVISION, 1);
-            collection.getCollection().withWriteConcern(writeConcern).insertOne(dataObject);
+            localData.append(REVISION, 1);
+            collection.getCollection().withWriteConcern(writeConcern).insertOne(localData);
             isNew = false;
             if (fireEvents) {
                 DataObjectCreatedEvent event = new DataObjectCreatedEvent(this, this);
@@ -305,39 +316,42 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             collection.addToCache(this);
         } else {
             collection.addToCache(this);
-            if (dataObject.containsKey(REVISION)) {
-                int oldRevision = dataObject.getInteger(REVISION);
-                dataObject.put(REVISION, oldRevision + 1);
+            if (localData.containsKey(REVISION)) {
+                int oldRevision = localData.getInteger(REVISION);
+                localData.put(REVISION, oldRevision + 1);
                 Object old = collection.getCollection().withWriteConcern(writeConcern).
                         findOneAndReplace(
                                 and(
-                                        eq("_id", dataObject.get("_id")),
+                                        eq("_id", localData.get("_id")),
                                         eq(REVISION, new BsonInt32(oldRevision))
-                                ), dataObject);
+                                ), localData);
                 if (old == null) {
                     //could not find orinal version, so our version of the document is stalled
                     throw new OptimisticLockException(this);
                 }
             } else {
                 //add revision to legacy documents
-                dataObject.put(REVISION, 1);
+                localData.put(REVISION, 1);
                 collection.getCollection().withWriteConcern(writeConcern).
-                        replaceOne(eq("_id", dataObject.get("_id")), dataObject);
+                        replaceOne(eq("_id", localData.get("_id")), localData);
             }
             if (fireEvents) {
                 fireChangedEvent();
             }
         }
-        changedAttributes.clear();
+        getData().changedAttributes.clear();
+        synchronized (data) {
+            data.dataObject = localData;
+        }
 //        LOG.info("write to database finsished");
     }
 
     public synchronized void addChangedAttribute(Attribute attr) {
-        changedAttributes.add(attr);
+        getData().changedAttributes.add(attr);
     }
 
     public void fireChangedEvent() {
-        DataObjectChangedEvent event = new DataObjectChangedEvent(this, new HashSet(changedAttributes));
+        DataObjectChangedEvent event = new DataObjectChangedEvent(this, new HashSet(getData().changedAttributes));
         this.fireChangedEvent(event);
         collection.fireChangedEvent(event);
         collection.fireEvents(event);
@@ -345,7 +359,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public synchronized void delete() {
-        collection.getCollection().deleteOne(dataObject);
+        collection.getCollection().deleteOne(data.dataObject);
         DataObjectDeletedEvent event = new DataObjectDeletedEvent(this, this);
         collection.fireChangedEvent(event);
         collection.fireEvents(event);
@@ -354,8 +368,56 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         destroy();
     }
 
+    private DocumentData getData() {
+        if (Context.getTransaction() != null && !isDummy) {
+            DocumentData localData = Context.getTransaction().getPrivateDataObjects().get(this);
+            if (localData == null) {
+                localData = new DocumentData();
+                localData.dataObject = cloneData(data.dataObject);
+                Context.getTransaction().getPrivateDataObjects().put(this, localData);
+            }
+            return localData;
+        } else {
+            return data;
+        }
+    }
+
     public org.bson.Document getDataObject() {
-        return dataObject;
+        return data.dataObject;
+    }
+
+    private org.bson.Document cloneData(org.bson.Document source) {
+        org.bson.Document clone = new org.bson.Document();
+        for (Entry<String, Object> entry : source.entrySet()) {
+            clone.put(entry.getKey(), cloneValue(entry.getValue()));
+        }
+        return clone;
+    }
+
+    private Object cloneValue(Object value) {
+        if (value instanceof Document) {
+            return cloneData((org.bson.Document) value);
+        } else if (value instanceof List) {
+            List sourceList = (List) value;
+            ArrayList clonedList = new ArrayList(sourceList.size());
+            for (Object o : sourceList) {
+                clonedList.add(cloneValue(o));
+            }
+            return clonedList;
+        } else if (value instanceof Set) {
+            Set sourceSet = (Set) value;
+            Set clonedSet = new HashSet(sourceSet.size());
+            for (Object o : sourceSet) {
+                clonedSet.add(cloneValue(o));
+            }
+            return clonedSet;
+        } else {
+            return value;
+        }
+    }
+
+    public void setDataObject(org.bson.Document dataObject) {
+        data.dataObject = dataObject;
     }
 
     public Document createClone() {
@@ -377,8 +439,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             Attribute changedAttribute = (Attribute) it.next();
             this.set(changedAttribute, entity.get(changedAttribute));
         }
-        dataObject.putAll(entity.getDataObject());
-        this.changedAttributes.addAll(entity.getChangedAttributes());
+        getDataObject().putAll(entity.getDataObject());
+        getData().changedAttributes.addAll(entity.getChangedAttributes());
     }
 
     public void merge(Document entity, Schema schema, Document user, boolean temp) {
@@ -390,6 +452,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             }
         }
     }
+    
 
 //    public MongoObject getPreviousVersion() {
 //        MongoObject p= new MongoObject(collection.getEngine(), collection, new org.bson.Document());
@@ -450,6 +513,21 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
                 return getByName(tableName).createNewDummy();
             }
             return getByName(tableName).getById(id);
+        }
+    }
+
+    public class DocumentData {
+
+        private transient org.bson.Document dataObject;
+//    private transient boolean original=false;
+        final transient Set<Attribute> changedAttributes = Collections.newSetFromMap(new ConcurrentHashMap());
+
+        public Set<Attribute> getChangedAttributes() {
+            return changedAttributes;
+        }
+
+        public org.bson.Document getDataObject() {
+            return dataObject;
         }
     }
     private static final Logger LOG = getLogger(Document.class.getName());
