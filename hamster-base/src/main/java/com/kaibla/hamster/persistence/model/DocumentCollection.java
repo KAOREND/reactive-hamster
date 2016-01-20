@@ -223,7 +223,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
             Document existing = map.get(obj.getId());
             if (existing != null) {
                 if (existing != obj) {
-                    throw new IllegalStateException("detected entity which has two instance " + obj.getId() + " in  " + tableName);
+                    throw new IllegalStateException("detected entity which has two instances " + obj.getId() + " in  " + tableName);
                 }
             } else {
                 map.put(obj.getId(), obj);

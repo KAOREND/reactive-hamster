@@ -31,9 +31,14 @@ public class CometProcessor extends HttpServlet {
     @Override
     public void init(ServletConfig config) throws ServletException {
         super.init(config);
+        if(UIEngine.getEngine() == null) {
         String className=config.getInitParameter(ENGINE_CLASS);
         engine=UIEngine.loadEngine(className);
+        } else {
+           engine=UIEngine.getEngine();
+        }
         self=this;
+        
     }
     
     public static UIEngine getEngine() {

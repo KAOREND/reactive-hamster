@@ -68,7 +68,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         data = new DocumentData();
         data.dataObject = dataObject;
         this.collection = table;
-        if (this.collection.isInCache(getId())) {
+        if (getId() != null && this.collection.isInCache(getId())) {
             throw new IllegalStateException("detected entity which has two instances " + getId() + " in  " + collection.getCollectionName());
         }
     }
@@ -386,7 +386,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         return data.dataObject;
     }
 
-    private org.bson.Document cloneData(org.bson.Document source) {
+    private static org.bson.Document cloneData(org.bson.Document source) {
         org.bson.Document clone = new org.bson.Document();
         for (Entry<String, Object> entry : source.entrySet()) {
             clone.put(entry.getKey(), cloneValue(entry.getValue()));
@@ -394,7 +394,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         return clone;
     }
 
-    private Object cloneValue(Object value) {
+    private static Object cloneValue(Object value) {
         if (value instanceof Document) {
             return cloneData((org.bson.Document) value);
         } else if (value instanceof List) {
@@ -421,13 +421,13 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public Document createClone() {
-        org.bson.Document cloneData = collection.getByIdFromDatabase(getId()).getDataObject();
+        org.bson.Document cloneData = cloneData(getDataObject());
         Document clone = new Document(collection.getEngine(), collection, cloneData);
         return clone;
     }
 
     public Document createClone(Schema schema, Document user, boolean temp) {
-        org.bson.Document cloneData = new org.bson.Document();
+        org.bson.Document cloneData = new org.bson.Document();                
         Document clone = new Document(collection.getEngine(), collection, cloneData);
         clone.setIsDummy(temp);
         clone.merge(this, schema, user, temp);
