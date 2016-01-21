@@ -37,6 +37,11 @@ public class TransactionManager {
         }
 
         // change transaction state to committed
+        
+        // run after commit task        
+        for(Runnable task : transaction.getAfterCommitTasks()) {
+            task.run();
+        }
     }
 
     public void commit() {
@@ -70,6 +75,11 @@ public class TransactionManager {
         }
 
         // change transaction state to rolled back
+        
+        // run after commit task        
+        for(Runnable task : transaction.getAfterRollbackTasks()) {
+            task.run();
+        }
     }
 
     public void rollback() {

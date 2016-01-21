@@ -202,7 +202,11 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     public void removeFromCache(Document obj) {
         synchronized (map) {
             if (isInCache(obj)) {
+                try {
                 obj.writeToDatabase(false);
+                } catch (OptimisticLockException e) {
+                    LOG.warning(e.getMessage());
+                }
                 obj.setNew(false);
                 map.remove(obj.getId());
                 obj.destroy();
