@@ -947,6 +947,7 @@ public abstract class HamsterPage extends HamsterComponent {
                 if (page != null) {
                     //ensure that the page is registered as early as possible, so that it can be cleaned up should the resume fail
                     engine.addPage(page);
+                    page.self=page;
                     page.markAsAlive();
                     if (!pages.contains(page)) {
                         pages.add(page);
