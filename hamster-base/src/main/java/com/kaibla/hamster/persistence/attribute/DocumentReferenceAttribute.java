@@ -46,10 +46,13 @@ public class DocumentReferenceAttribute<T extends DocumentCollection> extends At
     public int compare(Object o1, Object o2) {
         return 0;
     }
-
-    @Override
-    public Object get(org.bson.Document dataObject) {
-       return table.getById(dataObject.getString(getName()));
+    
+    public Object get(Document doc) {
+        if(shouldReadShadowCopy(doc)) {
+             return table.getById(doc.getDataObject().getString(getShadowName()));
+        } else {
+           return table.getById(doc.getDataObject().getString(getName()));
+        }
     }
     
     

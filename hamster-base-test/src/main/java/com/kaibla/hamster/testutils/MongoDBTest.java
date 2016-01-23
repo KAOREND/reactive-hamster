@@ -28,7 +28,7 @@ public class MongoDBTest extends BaseTest {
     
 
     @Before
-    public void setUp() throws UnknownHostException {
+    public void setUp() {
 
         MongoClient mongo = new MongoClient();
         db = mongo.getDatabase("mytest");

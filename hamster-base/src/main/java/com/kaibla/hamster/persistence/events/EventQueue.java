@@ -7,7 +7,6 @@ import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.model.DocumentCollection;
 import com.mongodb.Block;
 import com.mongodb.CursorType;
-import com.mongodb.MongoClient;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -20,13 +19,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
-import org.bson.BsonArray;
-import org.bson.BsonDateTime;
-import org.bson.BsonDocument;
-import org.bson.BsonInt32;
-import org.bson.BsonObjectId;
-import org.bson.BsonString;
-import org.bson.BsonValue;
 import org.bson.types.ObjectId;
 
 /**
@@ -95,6 +87,10 @@ public class EventQueue {
         }, "event queue processor");
         engine.addThread(queuePoller);
         queuePoller.start();
+    }
+
+    public String getPID() {
+        return pid;
     }
 
     public void pushEvent(MongoEvent event) {

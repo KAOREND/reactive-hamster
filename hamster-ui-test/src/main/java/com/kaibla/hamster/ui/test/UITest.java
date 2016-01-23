@@ -33,7 +33,7 @@ public class UITest extends MongoDBTest {
 
     
     @Before
-    public void setUp() throws UnknownHostException {
+    public void setUp() {
         super.setUp();
         testUIEngine=(UIEngine) testEngine;
         testEngine=testUIEngine;

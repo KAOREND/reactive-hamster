@@ -4,7 +4,7 @@
  */
 package com.kaibla.hamster.persistence.attribute;
 
-import com.mongodb.BasicDBObject;
+import com.kaibla.hamster.persistence.model.Document;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.logging.Logger;
@@ -37,10 +37,14 @@ public class SetAttribute extends Attribute {
         HashSet set = (HashSet) o2;
         return set.contains(o1);
     }
-
-    @Override
-    public HashSet get(org.bson.Document dataObject) {
-        ArrayList l = (ArrayList) dataObject.get(getName());
+    
+    public HashSet get(Document doc) {
+        ArrayList l;
+        if (shouldReadShadowCopy(doc)) {
+            l = (ArrayList) doc.getDataObject().get(getShadowName());
+        } else {
+            l = (ArrayList) doc.getDataObject().get(getName());
+        }
         if (l == null) {
             return new HashSet();
         }
@@ -49,6 +53,7 @@ public class SetAttribute extends Attribute {
 
     @Override
     public void set(org.bson.Document dataObject, Object value) {
+        createShadowCopy(dataObject);
         HashSet set = (HashSet) value;
         if (set == null) {
             dataObject.remove(getName());

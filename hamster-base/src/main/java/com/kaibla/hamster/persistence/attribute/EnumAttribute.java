@@ -56,7 +56,13 @@ public class EnumAttribute<T extends Enum<T>> extends Attribute {
     }
 
     public T get(Document o) {
-        String s = o.getDataObject().getString(this.getName());
+        String s;
+        if (shouldReadShadowCopy(o)) {
+            s = o.getDataObject().getString(this.getShadowName());
+        } else {
+            s = o.getDataObject().getString(this.getName());
+        }
+
         if (s != null) {
             return getValue(s);
         } else {
@@ -72,6 +78,7 @@ public class EnumAttribute<T extends Enum<T>> extends Attribute {
 
     @Override
     public void set(org.bson.Document dataObject, Object value) {
+        createShadowCopy(dataObject);
         Object o = getName(value);
         if (o != null) {
             dataObject.put(this.getName(), o);

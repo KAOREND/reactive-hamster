@@ -51,7 +51,7 @@ public class TableListModelTest extends MongoDBTest {
 
     @Before
     @Override
-    public void setUp() throws UnknownHostException {
+    public void setUp() {
         super.setUp();
     }
 

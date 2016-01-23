@@ -21,6 +21,8 @@ import com.kaibla.hamster.persistence.attribute.ObjectAttribute;
 import com.kaibla.hamster.persistence.attribute.SetAttribute;
 import com.kaibla.hamster.persistence.attribute.StringAttribute;
 import com.kaibla.hamster.collections.StringSource;
+import com.kaibla.hamster.persistence.transactions.TransactionManager;
+import com.kaibla.hamster.persistence.transactions.Transactions;
 import com.mongodb.WriteConcern;
 import static com.mongodb.client.model.Filters.*;
 import java.io.ObjectStreamException;
@@ -55,8 +57,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     private boolean isDummy = false;
     public final static String REVISION = "rev";
-    
-     public final static String TRANSACTION = "trans";
+
+    public final static String TRANSACTION = "trans";
 
     public Document(HamsterEngine engine, DocumentCollection table, org.bson.Document dataObject) {
         super(engine);
@@ -88,8 +90,10 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     public void valueChanged(Attribute attr) {
         if (getData().changedAttributes.contains(attr)) {
             LOG.log(Level.INFO, "attribute changed twice in one transaction {0}", attr);
+        } else {
+            attr.createShadowCopy(getDataObject());
+            getData().changedAttributes.add(attr);
         }
-        getData().changedAttributes.add(attr);
     }
 
     public Set<Attribute> getChangedAttributes() {
@@ -112,23 +116,23 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public Object get(Attribute attr) {
-        return attr.get(getDataObject());
+        return attr.get(this);
     }
 
     public Object get(ObjectAttribute attr) {
-        return attr.get(getDataObject());
+        return attr.get(this);
     }
 
     public boolean get(BooleanAttribute attr) {
-        return getDataObject().getBoolean(attr.getName(), attr.getDefaultValue());
+        return getDataObject().getBoolean(getShadowAwareAttributeName(attr), attr.getDefaultValue());
     }
 
     public Double get(DoubleAttribute attr) {
-        return getDataObject().getDouble(attr.getName());
+        return getDataObject().getDouble(getShadowAwareAttributeName(attr));
     }
 
     public String get(StringAttribute attr) {
-        String value = getDataObject().getString(attr.getName());
+        String value = getDataObject().getString(getShadowAwareAttributeName(attr));
         if (value != null && attr.isCaseInsensitive()) {
             return value.toLowerCase();
         }
@@ -136,40 +140,48 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public long get(LongAttribute attr) {
-        return getDataObject().getLong(attr.getName());
+        return getDataObject().getLong(getShadowAwareAttributeName(attr));
     }
 
     public int get(IntegerAttribute attr) {
         try {
-            return getDataObject().getInteger(attr.getName(), attr.getDefaultValue());
+            return getDataObject().getInteger(getShadowAwareAttributeName(attr), attr.getDefaultValue());
         } catch (NullPointerException e) {
             return 0;
         }
     }
 
     public Document get(DocumentReferenceAttribute attr, AbstractListenerOwner owner) {
-        return attr.getTable().getById(getDataObject().getString(attr.getName()), owner);
+        return attr.getTable().getById(getDataObject().getString(getShadowAwareAttributeName(attr)), owner);
     }
 
     public Document get(DocumentReferenceAttribute attr) {
-        return attr.getTable().getById(getDataObject().getString(attr.getName()));
+        return attr.getTable().getById(getDataObject().getString(getShadowAwareAttributeName(attr)));
     }
 
     public Date get(DateAttribute attr) {
-        return (Date) getDataObject().get(attr.getName());
+        return (Date) getDataObject().get(getShadowAwareAttributeName(attr));
     }
 
     public String get(FileAttribute attr) {
-        return getDataObject().getString(attr.getName());
+        return getDataObject().getString(getShadowAwareAttributeName(attr));
     }
 
     public HashSet get(SetAttribute attr) {
-        return attr.get(getDataObject());
+        return attr.get(this);
+    }
+    
+    private String getShadowAwareAttributeName(Attribute attr) {
+        if(shouldReadShadowCopy()) { 
+            return attr.getShadowName();
+        } else {
+            return attr.getName();
+        }
     }
 
     public Document set(Attribute attr, Object value) {
         Object oldValue = get(attr);
-        if (oldValue != value || (value != null && !value.equals(oldValue))) {
+        if (oldValue != value || (value != null && !value.equals(oldValue))) {            
             valueChanged(attr);
             attr.set(getDataObject(), value);
         }
@@ -178,7 +190,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     public Document set(ObjectAttribute attr, Object value) {
         Object oldValue = get(attr);
-        if (oldValue != value || (value != null && value.equals(oldValue))) {
+        if (oldValue != value || (value != null && value.equals(oldValue))) {            
             valueChanged(attr);
             attr.set(getDataObject(), value);
         }
@@ -197,13 +209,13 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         return this;
     }
 
-    public Document set(DoubleAttribute attr, double value) {
+    public Document set(DoubleAttribute attr, double value) {       
         valueChanged(attr);
         getDataObject().put(attr.getName(), value);
         return this;
     }
 
-    public Document set(StringAttribute attr, String value) {
+    public Document set(StringAttribute attr, String value) {       
         valueChanged(attr);
         if (value == null) {
             getDataObject().remove(attr.getName());
@@ -232,10 +244,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         valueChanged(attr);
         if (value == null) {
             getDataObject().remove(attr.getName());
-        } else {
-            if (value != null) {
-                getDataObject().put(attr.getName(), value.getId());
-            }
+        } else if (value != null) {
+            getDataObject().put(attr.getName(), value.getId());
         }
         return this;
     }
@@ -294,7 +304,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public synchronized void writeToDatabase(boolean fireEvents) {
-        writeToDatabase(fireEvents, WriteConcern.ACKNOWLEDGED);
+        writeToDatabase(fireEvents, WriteConcern.W1);
     }
 
     public synchronized void writeToDatabase(boolean fireEvents, WriteConcern writeConcern) {
@@ -302,10 +312,32 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 //       LOG.info("       "+dataObject);      
 
         org.bson.Document localData = getDataObject();
+
+        if (localData.containsKey(TRANSACTION)) {
+            if (Context.getTransaction() == null) {
+                throw new NoTransaction(this);
+            } else {
+                ObjectId transactionId = localData.getObjectId(TRANSACTION);
+                if (!transactionId.equals(Context.getTransaction().getTransactionId())) {
+                    Transactions.State state = getEngine().getTransactionManager().getTransactionState(transactionId);
+                    if (state == Transactions.State.STARTED || state == Transactions.State.COMMTTING || state == Transactions.State.ROLLING_BACK) {
+                        throw new OptimisticLockException(this);
+                    }
+                }
+            }
+        }
+
+        if (Context.getTransaction() != null) {
+            localData.append(TRANSACTION, Context.getTransaction().getTransactionId());
+        }
+
         if (isNew) {
             localData.append(REVISION, 1);
             collection.getCollection().withWriteConcern(writeConcern).insertOne(localData);
             isNew = false;
+            synchronized (data) {
+                data.dataObject = localData;
+            }
             if (fireEvents) {
                 DataObjectCreatedEvent event = new DataObjectCreatedEvent(this, this);
                 this.fireChangedEvent(event);
@@ -335,15 +367,47 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
                 collection.getCollection().withWriteConcern(writeConcern).
                         replaceOne(eq("_id", localData.get("_id")), localData);
             }
+            synchronized (data) {
+                data.dataObject = localData;
+            }
             if (fireEvents) {
                 fireChangedEvent();
             }
         }
-        getData().changedAttributes.clear();
-        synchronized (data) {
-            data.dataObject = localData;
+        if (Context.getTransaction() == null) {
+            //don't clear changedAttributes until the end of a transaction
+            //otherwise rollback will not work
+            getData().changedAttributes.clear();
         }
 //        LOG.info("write to database finsished");
+    }
+
+    public boolean shouldReadShadowCopy() {
+        if (Context.getTransaction() == null) {
+            // if we are not inside a transaction we are using uncommited read
+            return false;
+        }
+        if (getDataObject().containsKey(TRANSACTION)) {
+            HamsterEngine engine = collection.getEngine();
+            TransactionManager tm = engine.getTransactionManager();
+            ObjectId transactionId = getDataObject().getObjectId(TRANSACTION);
+            if (Context.getTransaction().getTransactionId().equals(transactionId)) {
+                // the tranaction which created the shadow copies was our transaction
+                // so we should read the uncommited state
+                return false;
+            }
+            Transactions.State state = tm.getTransactionState(transactionId);
+            if (state != Transactions.State.COMMITTED || state == Transactions.State.NOT_EXISTENT) {
+                // If the transaction was not committed yet, then we should use the previous state from the shadow copies
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            // this document is not part of another transaction at the moment
+            // so no need to look at shadow 
+            return false;
+        }
     }
 
     public synchronized void addChangedAttribute(Attribute attr) {
@@ -383,7 +447,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public org.bson.Document getDataObject() {
-        return data.dataObject;
+        return getData().dataObject;
     }
 
     private static org.bson.Document cloneData(org.bson.Document source) {
@@ -427,7 +491,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public Document createClone(Schema schema, Document user, boolean temp) {
-        org.bson.Document cloneData = new org.bson.Document();                
+        org.bson.Document cloneData = new org.bson.Document();
         Document clone = new Document(collection.getEngine(), collection, cloneData);
         clone.setIsDummy(temp);
         clone.merge(this, schema, user, temp);
@@ -452,7 +516,6 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             }
         }
     }
-    
 
 //    public MongoObject getPreviousVersion() {
 //        MongoObject p= new MongoObject(collection.getEngine(), collection, new org.bson.Document());

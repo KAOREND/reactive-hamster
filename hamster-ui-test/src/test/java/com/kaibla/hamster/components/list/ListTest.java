@@ -44,7 +44,7 @@ public class ListTest extends UITest implements Serializable {
     }
 
     @Before
-    public void setUp() throws UnknownHostException {
+    public void setUp() {
         super.setUp();
         
     }
