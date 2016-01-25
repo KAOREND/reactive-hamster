@@ -5,6 +5,7 @@ import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.model.DocumentCollection;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *

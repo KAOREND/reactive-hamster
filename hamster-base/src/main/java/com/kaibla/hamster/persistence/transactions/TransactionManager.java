@@ -48,6 +48,7 @@ public class TransactionManager {
                 }
                 bson.remove(Document.TRANSACTION);
                 bson.remove(Document.DIRTY);
+                 bson.remove(Document.NEW);
                 doc.writeToDatabase(false);
             }
         }

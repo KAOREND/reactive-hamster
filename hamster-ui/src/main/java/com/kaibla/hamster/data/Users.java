@@ -14,6 +14,7 @@ import com.mongodb.client.MongoDatabase;
 import java.util.Locale;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *

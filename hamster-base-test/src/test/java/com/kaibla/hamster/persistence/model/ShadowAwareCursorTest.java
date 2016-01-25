@@ -195,4 +195,53 @@ public class ShadowAwareCursorTest extends MongoDBTest {
         assertFalse(iter.hasNext());
     }
 
+    @Test
+    public void testNewDocumentTransaction() {
+
+        TransactionManager tm = testEngine.getTransactionManager();
+        Transaction t1 = tm.startTransaction();
+        IntegerAttribute attr = new IntegerAttribute(testTable.getClass(), "intattr5");
+        Document doc1 = testTable.createNew();
+        doc1.set(attr, 1);
+        doc1.writeToDatabase();
+
+        Document doc2 = testTable.createNew();
+        doc2.set(attr, 2);
+        doc2.writeToDatabase();
+
+        Document doc3 = testTable.createNew();
+        doc3.set(attr, 3);
+        doc3.writeToDatabase();
+
+        Document doc4 = testTable.createNew();
+        doc4.set(attr, 4);
+        doc4.writeToDatabase();
+
+        Context.clear();
+        Transaction t2 = tm.startTransaction();
+        ShadowAwareCursor c = new ShadowAwareCursor(new Query().addSortCriteria(attr, false), testTable);
+        Iterator<Document> iter = c.iterator();
+        //the newly created docs should not be visible yet       
+        assertFalse(iter.hasNext());
+        Context.clear();
+        Context.setTransaction(t1);
+        tm.commit();
+        Context.clear();
+        Transaction t3 = tm.startTransaction();
+        Context.setTransaction(t3);
+        //now the newly created docs should  be visible to a new transaction:     
+        c = new ShadowAwareCursor(new Query().addSortCriteria(attr, false), testTable);
+        iter = c.iterator();
+
+        assertTrue(iter.hasNext());
+        assertTrue(doc1 == iter.next());
+        assertTrue(iter.hasNext());
+        assertTrue(doc2 == iter.next());
+        assertTrue(iter.hasNext());
+        assertTrue(doc3 == iter.next());
+        assertTrue(iter.hasNext());
+        assertTrue(doc4 == iter.next());
+        assertFalse(iter.hasNext());
+    }
+
 }

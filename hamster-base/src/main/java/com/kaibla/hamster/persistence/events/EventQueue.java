@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
 import org.bson.types.ObjectId;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *

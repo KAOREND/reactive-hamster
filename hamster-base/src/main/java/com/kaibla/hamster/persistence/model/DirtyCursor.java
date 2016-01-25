@@ -66,7 +66,7 @@ public class DirtyCursor implements Iterable<Document> {
         content = new BalancedTree<Document>(query);
         int i=0;
         for(Document doc: cursor) {
-            if(query.isInQuery(doc)) {                
+            if(query.isInQuery(doc) && doc.isVisible()) {                
                 i++;
                 content.add(doc);
             }            

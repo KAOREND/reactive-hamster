@@ -14,6 +14,7 @@ import static java.util.logging.Logger.getLogger;
 import org.bson.BsonDocument;
 import org.bson.BsonInt32;
 import org.bson.conversions.Bson;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *

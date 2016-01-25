@@ -1,4 +1,3 @@
-
 package com.kaibla.hamster.persistence.model;
 
 import com.kaibla.hamster.base.AbstractListenerOwner;
@@ -43,6 +42,7 @@ import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
 import org.bson.BsonInt32;
 import org.bson.types.ObjectId;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *
@@ -60,10 +60,12 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     public final static String REVISION = "rev";
 
     public final static String TRANSACTION = "trans";
-    
+
     public final static String DIRTY = "dirty";
-    
-    public final static StringAttribute ID_ATTRIBUTE = new StringAttribute(Document.class,"_id");
+
+    public final static String NEW = "new";
+
+    public final static StringAttribute ID_ATTRIBUTE = new StringAttribute(Document.class, "_id");
 
     public Document(HamsterEngine engine, DocumentCollection table, org.bson.Document dataObject) {
         super(engine);
@@ -175,9 +177,9 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     public HashSet get(SetAttribute attr) {
         return attr.get(this);
     }
-    
+
     private String getShadowAwareAttributeName(Attribute attr) {
-        if(shouldReadShadowCopy()) { 
+        if (shouldReadShadowCopy()) {
             return attr.getShadowName();
         } else {
             return attr.getName();
@@ -186,7 +188,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     public Document set(Attribute attr, Object value) {
         Object oldValue = get(attr);
-        if (oldValue != value || (value != null && !value.equals(oldValue))) {            
+        if (oldValue != value || (value != null && !value.equals(oldValue))) {
             valueChanged(attr);
             attr.set(getDataObject(), value);
         }
@@ -195,7 +197,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
     public Document set(ObjectAttribute attr, Object value) {
         Object oldValue = get(attr);
-        if (oldValue != value || (value != null && value.equals(oldValue))) {            
+        if (oldValue != value || (value != null && value.equals(oldValue))) {
             valueChanged(attr);
             attr.set(getDataObject(), value);
         }
@@ -214,13 +216,13 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         return this;
     }
 
-    public Document set(DoubleAttribute attr, double value) {       
+    public Document set(DoubleAttribute attr, double value) {
         valueChanged(attr);
         getDataObject().put(attr.getName(), value);
         return this;
     }
 
-    public Document set(StringAttribute attr, String value) {       
+    public Document set(StringAttribute attr, String value) {
         valueChanged(attr);
         if (value == null) {
             getDataObject().remove(attr.getName());
@@ -339,6 +341,9 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
 
         if (isNew) {
             localData.append(REVISION, 1);
+            if (Context.getTransaction() != null) {
+                localData.put(NEW, true);
+            }
             collection.getCollection().withWriteConcern(writeConcern).insertOne(localData);
             isNew = false;
             synchronized (data) {
@@ -386,6 +391,10 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             getData().changedAttributes.clear();
         }
 //        LOG.info("write to database finsished");
+    }
+    
+    public boolean isVisible() {
+        return !(shouldReadShadowCopy() && getData().getDataObject().containsKey(NEW));
     }
 
     public boolean shouldReadShadowCopy() {

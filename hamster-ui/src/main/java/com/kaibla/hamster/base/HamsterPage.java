@@ -40,6 +40,7 @@ import javax.servlet.ServletContext;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.websocket.Session;
+import static java.util.logging.Logger.getLogger;
 
 /**
  * @author Kai Orend
