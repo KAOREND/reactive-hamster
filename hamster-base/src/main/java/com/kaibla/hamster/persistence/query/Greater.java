@@ -35,6 +35,13 @@ public class Greater extends UnaryCondition {
     }
 
     @Override
+    public Bson buildShadowQuery() {
+         return Filters.or(Filters.gt(attr.getName(), value),Filters.gt(attr.getShadowName(), value));
+    }
+    
+    
+
+    @Override
     public boolean equals(Object o) {
         if (o instanceof Greater) {
             return super.equals(o);

@@ -14,7 +14,11 @@ public interface BaseQuery extends Comparator, Serializable {
 
     public abstract Bson getQuery();
     
+    public abstract Bson getShadowQuery();
+    
     public abstract Bson getSort();
+    
+    public abstract Bson getSortQuery(Document startDoc);
 
     public abstract boolean isInQuery(Document o);
 

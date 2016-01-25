@@ -28,4 +28,11 @@ public class Not extends Condition {
         return Filters.not(condition.buildQuery());
     }
 
+    @Override
+    public Bson buildShadowQuery() {
+        return Filters.not(condition.buildShadowQuery());
+    }
+    
+    
+
 }

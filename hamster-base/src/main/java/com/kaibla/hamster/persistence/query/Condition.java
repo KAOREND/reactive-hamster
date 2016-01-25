@@ -15,6 +15,5 @@ public abstract class Condition implements Serializable {
     
     public abstract Bson buildQuery();
     
-    
-
+    public abstract Bson buildShadowQuery();
 }

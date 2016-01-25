@@ -33,11 +33,22 @@ public class Equals extends UnaryCondition {
     
     @Override
     public Bson buildQuery() {
+        return buildQuery(attr.getName());
+    }
+    
+    
+     public Bson buildQuery(String attrName) {
          if(attr instanceof DocumentReferenceAttribute) {
-          return Filters.eq(attr.getName(), ((Document)value).getId());
+          return Filters.eq(attrName, ((Document)value).getId());
         } else {
-            return Filters.eq(attr.getName(), value);
+            return Filters.eq(attrName, value);
         }
+    }
+    
+    
+    @Override
+    public Bson buildShadowQuery() {
+        return Filters.or(buildQuery(attr.getName()),buildQuery(attr.getShadowName()));
     }
     
     
@@ -52,4 +63,6 @@ public class Equals extends UnaryCondition {
     }
     
     private static final Logger LOG = getLogger(Equals.class.getName());
+
+   
 }

@@ -18,21 +18,23 @@ import java.util.ArrayList;
  * @author kai
  */
 public class And extends Condition {
-    
+
     List<Condition> conditions;
 
     public And(List<Condition> conditions) {
         this.conditions = conditions;
     }
-    
-    public static And and(Condition ...conditions) {
+
+    public static And and(Condition... conditions) {
         return new And(Arrays.asList(conditions));
     }
 
     @Override
     public boolean isInCondition(Document o) {
-        for(Condition condition: conditions) {
-            if(!condition.isInCondition(o)) return false;
+        for (Condition condition : conditions) {
+            if (!condition.isInCondition(o)) {
+                return false;
+            }
         }
         return true;
     }
@@ -40,33 +42,40 @@ public class And extends Condition {
     public List<Condition> getConditions() {
         return conditions;
     }
-    
+
     @Override
     public Bson buildQuery() {
-        ArrayList<Bson> filters=new ArrayList(conditions.size());
-        for(Condition c : conditions) {
+        ArrayList<Bson> filters = new ArrayList(conditions.size());
+        for (Condition c : conditions) {
             filters.add(c.buildQuery());
         }
         return Filters.and(filters);
     }
-    
-    
-    
+
+    @Override
+    public Bson buildShadowQuery() {
+        ArrayList<Bson> filters = new ArrayList(conditions.size());
+        for (Condition c : conditions) {
+            filters.add(c.buildShadowQuery());
+        }
+        return Filters.and(filters);
+    }
+
     @Override
     public boolean equals(Object o) {
-        if(o instanceof And) {
-           And and=(And) o;
-           return and.conditions.equals(conditions);
+        if (o instanceof And) {
+            And and = (And) o;
+            return and.conditions.equals(conditions);
         }
         return false;
     }
-    
+
     @Override
     public int hashCode() {
-        int hashCode=1;
-        for(Condition cond : conditions) {
-             hashCode = 31 * hashCode +cond.hashCode();
-        }      
-        return hashCode; 
+        int hashCode = 1;
+        for (Condition cond : conditions) {
+            hashCode = 31 * hashCode + cond.hashCode();
+        }
+        return hashCode;
     }
 }

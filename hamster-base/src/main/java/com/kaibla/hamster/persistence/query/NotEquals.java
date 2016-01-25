@@ -32,11 +32,20 @@ public class NotEquals extends UnaryCondition {
 
     @Override
     public Bson buildQuery() {
-        if (attr instanceof DocumentReferenceAttribute) {
+       return buildQuery(attr.getName());
+    }
+
+    @Override
+    public Bson buildShadowQuery() {
+        return Filters.or(buildQuery(attr.getName()),buildQuery(attr.getShadowName()));
+    }
+    
+    private Bson buildQuery(String attrName) {
+         if (attr instanceof DocumentReferenceAttribute) {
             org.bson.Document s = new org.bson.Document();
-            return Filters.ne(attr.getName(), ((Document) value).getId());
+            return Filters.ne(attrName, ((Document) value).getId());
         } else {
-            return Filters.ne(attr.getName(), value);
+            return Filters.ne(attrName, value);
         }
     }
 

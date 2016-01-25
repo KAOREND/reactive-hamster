@@ -45,6 +45,15 @@ public class Or extends Condition {
         }
         return Filters.or(filters);
     }
+    
+     @Override
+    public Bson buildShadowQuery() {
+         ArrayList<Bson> filters = new ArrayList(conditions.size());
+        for (Condition c : conditions) {
+            filters.add(c.buildShadowQuery());
+        }
+        return Filters.or(filters);
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -63,4 +72,6 @@ public class Or extends Condition {
         }
         return hashCode;
     }
+
+   
 }

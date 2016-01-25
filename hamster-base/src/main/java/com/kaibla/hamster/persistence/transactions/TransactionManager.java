@@ -47,6 +47,7 @@ public class TransactionManager {
                     attr.deleteShadowCopy(bson);
                 }
                 bson.remove(Document.TRANSACTION);
+                bson.remove(Document.DIRTY);
                 doc.writeToDatabase(false);
             }
         }
@@ -89,6 +90,7 @@ public class TransactionManager {
                     attr.revertChanges(bson);
                 }
                 bson.remove(Document.TRANSACTION);
+                bson.remove(Document.DIRTY);
                 doc.writeToDatabase(false);
             }
         }

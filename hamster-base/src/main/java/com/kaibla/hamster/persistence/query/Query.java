@@ -1,8 +1,10 @@
 package com.kaibla.hamster.persistence.query;
 
+import com.kaibla.hamster.base.Context;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.attribute.Attribute;
 import com.mongodb.MongoClient;
+import com.mongodb.client.model.Filters;
 import com.mongodb.util.JSON;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -24,7 +26,7 @@ public class Query implements BaseQuery {
     List<Equals> eventFilterConditions = new ArrayList<>();
 
     public Query() {
-      
+
     }
 
     public List<Equals> getEventFilter() {
@@ -80,7 +82,6 @@ public class Query implements BaseQuery {
         return this;
     }
 
-
     public List<Condition> getConditions() {
         return conditions;
     }
@@ -119,7 +120,7 @@ public class Query implements BaseQuery {
     @Override
     public Bson getSort() {
         BsonDocument orderBy = new BsonDocument();
-        for (SortCriteria sortCriteria : sortCriterias) {
+        for (SortCriteria sortCriteria : getSortCriterias()) {
             if (sortCriteria.isDescending()) {
                 orderBy.put(sortCriteria.getAttribute().getName(), new BsonInt32(-1));
             } else {
@@ -141,7 +142,7 @@ public class Query implements BaseQuery {
 
     @Override
     public int compare(Document o1, Document o2) {
-        for (SortCriteria order : sortCriterias) {
+        for (SortCriteria order : getSortCriterias()) {
             int diff = order.compare(o1, o2);
             if (diff != 0) {
                 return diff;
@@ -190,6 +191,47 @@ public class Query implements BaseQuery {
         return hashCode;
     }
 
+    
+
+    @Override
+    public Bson getSortQuery(Document startDoc) {
+        Bson q = getQuery();
+        ArrayList<Bson> sortConditions = new ArrayList(sortCriterias.size() + 1);
+        sortConditions.add(q);
+        for (SortCriteria c : getSortCriterias()) {
+            if (c.isDescending()) {
+                sortConditions.add(Filters.lt(c.attr.getName(), startDoc.get(c.attr)));
+            } else {
+                sortConditions.add(Filters.gt(c.attr.getName(), startDoc.get(c.attr)));
+            }
+        }
+        return Filters.and(sortConditions);
+    }
+
+    @Override
+    public Bson getShadowQuery() {
+        Bson query = new BsonDocument();
+        if (conditions.size() > 1) {
+            And and = new And(conditions);
+            query = and.buildShadowQuery();
+        } else if (conditions.size() == 1) {
+            query = conditions.get(0).buildShadowQuery();
+        }
+        return Filters.and(query,Filters.eq(Document.DIRTY, true));
+    }
+
+    public List<SortCriteria> getSortCriterias() {
+        if(sortCriterias.isEmpty()) {
+            ArrayList<SortCriteria> criterias=new ArrayList<>(1);
+            criterias.add(new SortCriteria(Document.ID_ATTRIBUTE, false));
+            return criterias;
+        } else {
+            return sortCriterias;
+        }
+    }
+    
+    
+    
     private static final Logger LOG = getLogger(Query.class
             .getName());
 }

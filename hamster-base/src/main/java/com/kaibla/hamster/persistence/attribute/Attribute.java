@@ -64,7 +64,7 @@ public abstract class Attribute implements Serializable {
 
     public Object get(Document doc) {
         if(shouldReadShadowCopy(doc)) {
-           return doc.getDataObject().get(this.getName()); 
+           return doc.getDataObject().get(this.getShadowName()); 
         } else {
            return doc.getDataObject().get(this.getName()); 
         }

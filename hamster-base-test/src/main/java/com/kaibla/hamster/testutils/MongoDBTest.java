@@ -4,6 +4,7 @@
  */
 package com.kaibla.hamster.testutils;
 
+import com.kaibla.hamster.base.Context;
 import com.mongodb.DB;
 import com.mongodb.Mongo;
 import com.kaibla.hamster.base.HamsterEngine;
@@ -29,7 +30,7 @@ public class MongoDBTest extends BaseTest {
 
     @Before
     public void setUp() {
-
+        Context.clear();
         MongoClient mongo = new MongoClient();
         db = mongo.getDatabase("mytest");
         db.drop();
@@ -51,6 +52,8 @@ public class MongoDBTest extends BaseTest {
         testEngine.destroy();
         testEngine=null;
     }
+    
+    
     private static final Logger LOG = getLogger(MongoDBTest.class.getName());
 
    

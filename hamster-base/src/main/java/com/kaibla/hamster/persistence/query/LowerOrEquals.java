@@ -35,6 +35,13 @@ public class LowerOrEquals extends UnaryCondition {
     }
 
     @Override
+    public Bson buildShadowQuery() {
+         return Filters.or(Filters.lte(attr.getName(), value),Filters.lte(attr.getShadowName(), value));
+    }
+    
+    
+
+    @Override
     public boolean equals(Object o) {
         if (o instanceof LowerOrEquals) {
             return super.equals(o);

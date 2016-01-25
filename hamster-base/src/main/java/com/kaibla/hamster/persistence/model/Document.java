@@ -1,3 +1,4 @@
+
 package com.kaibla.hamster.persistence.model;
 
 import com.kaibla.hamster.base.AbstractListenerOwner;
@@ -59,6 +60,10 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     public final static String REVISION = "rev";
 
     public final static String TRANSACTION = "trans";
+    
+    public final static String DIRTY = "dirty";
+    
+    public final static StringAttribute ID_ATTRIBUTE = new StringAttribute(Document.class,"_id");
 
     public Document(HamsterEngine engine, DocumentCollection table, org.bson.Document dataObject) {
         super(engine);
@@ -328,7 +333,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         }
 
         if (Context.getTransaction() != null) {
-            localData.append(TRANSACTION, Context.getTransaction().getTransactionId());
+            localData.put(TRANSACTION, Context.getTransaction().getTransactionId());
+            localData.put(DIRTY, true);
         }
 
         if (isNew) {

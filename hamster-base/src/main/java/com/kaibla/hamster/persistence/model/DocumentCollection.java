@@ -65,6 +65,12 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         attributes = new ArrayList();
         nameMap.put(name, this);
         classMap.put(this.getClass().getName(), this);
+
+        org.bson.Document dirtyIndex = new org.bson.Document();
+        dirtyIndex.append(Document.DIRTY, 1);
+        dirtyIndex.append("unique", false);
+        dirtyIndex.append("sparse", true);
+        collection.createIndex(dirtyIndex);
     }
 
     public synchronized void addChangedListener(ChangedListener listener, Query query) {
@@ -97,11 +103,9 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         if (!foundEqualsCondition) {
             LOG.warning("addChangeListener for Query: query did not contain an Equals condition that could be used for Event Routing");
             addChangedListener(listener);
-        } else {
-            if (listener instanceof AbstractListenerOwner) {
-                AbstractListenerOwner comp = (AbstractListenerOwner) listener;
-                comp.addEventFilter(new QueryFilter(self, query));
-            }
+        } else if (listener instanceof AbstractListenerOwner) {
+            AbstractListenerOwner comp = (AbstractListenerOwner) listener;
+            comp.addEventFilter(new QueryFilter(self, query));
         }
     }
 
@@ -203,7 +207,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         synchronized (map) {
             if (isInCache(obj)) {
                 try {
-                obj.writeToDatabase(false);
+                    obj.writeToDatabase(false);
                 } catch (OptimisticLockException e) {
                     LOG.warning(e.getMessage());
                 }
@@ -242,7 +246,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
             return t == obj;
         }
     }
-    
+
     public boolean isInCache(String id) {
         synchronized (map) {
             return map.contains(id);
@@ -271,7 +275,11 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public Document getById(String id) {
-        return getById(id, true, Context.getListenerContainer());
+        if (Context.getTransaction() != null) {
+            return getById(id, true, Context.getTransaction());
+        } else {
+            return getById(id, true, Context.getListenerContainer());
+        }
     }
 
     public Document getById(String id, AbstractListenerOwner owner) {
@@ -279,8 +287,8 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     /**
-     * @param allowCache allows to access a database object without adding it to
-     * the cache. DO NOT EDIT non-cached objects!
+     * @param allowCache allows to access a database object without adding it to the cache. DO NOT EDIT non-cached
+     * objects!
      */
     public Document getById(String id, boolean allowCache, ChangedListener owner) {
         if (id == null) {
@@ -334,18 +342,30 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         }
         return new Document(getEngine(), this, object);
     }
-    
+
     public Document reloadDocument(String id) {
-        synchronized(map) {
+        synchronized (map) {
             Document doc = map.get(id);
-            if(doc != null) {
+            if (doc != null) {
                 org.bson.Document object = (org.bson.Document) collection.
-                find(new org.bson.Document("_id", new ObjectId(id))).limit(1).first();
+                        find(new org.bson.Document("_id", new ObjectId(id))).limit(1).first();
                 doc.setDataObject(object);
                 return doc;
             } else {
                 return getById(id);
             }
+        }
+    }
+
+    public Document getDocumentForBSON(org.bson.Document dbObject) {
+        String id = "" + dbObject.get("_id");
+        synchronized (map) {
+            Document o = map.get(id);
+            if (o == null) {
+                o = new Document(getEngine(), self, dbObject);
+                addToCache(o);
+            }
+            return o;
         }
     }
 
@@ -375,8 +395,7 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     /**
-     * This method should be overriden to fireEvents when an objects has been
-     * changed.
+     * This method should be overriden to fireEvents when an objects has been changed.
      *
      * @param e
      */
@@ -395,9 +414,6 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
                 getName()});
         }
         keys.append("unique", unique);
-        if (unique) {
-            keys.append("dropDups", true);
-        }
         keys.append("sparse", sparse);
         collection.createIndex(keys);
     }
