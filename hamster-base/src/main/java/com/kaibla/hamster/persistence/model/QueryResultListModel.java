@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.SortedSet;
 import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
+import org.bson.conversions.Bson;
 
 /**
  *
@@ -75,35 +76,33 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
                     } else if (e instanceof DataObjectDeletedEvent) {
                         cachedList.remove(mo);
                         superFireChangedEvent(e);
-                    } else {
-                        if (e instanceof DataObjectChangedEvent) {
-                            if (cachedList.contains(mo)) {
-                                DataObjectChangedEvent d = (DataObjectChangedEvent) e;
-                                //update order
-                                boolean orderChanged = false;
-                                if (d.getChangedAttributes() == null) {
-                                    orderChanged = true;
-                                } else {
-                                    for (Attribute changedAttribute : d.getChangedAttributes()) {
-                                        if (query.isOrderAttribute(changedAttribute)) {
-                                            orderChanged = true;
-                                        }
+                    } else if (e instanceof DataObjectChangedEvent) {
+                        if (cachedList.contains(mo)) {
+                            DataObjectChangedEvent d = (DataObjectChangedEvent) e;
+                            //update order
+                            boolean orderChanged = false;
+                            if (d.getChangedAttributes() == null) {
+                                orderChanged = true;
+                            } else {
+                                for (Attribute changedAttribute : d.getChangedAttributes()) {
+                                    if (query.isOrderAttribute(changedAttribute)) {
+                                        orderChanged = true;
                                     }
                                 }
+                            }
 //                    System.out.
 //                            println("tableListModel test order changed: " + orderChanged + "   " + table.
 //                            getCollectionName()+"  query: "+query+" mo "+mo);
-                                if (orderChanged) {
-                                    cachedList.remove(mo);
-                                    addToCache(mo);
-                                    superFireChangedEvent(new ListChangedEvent(e.
-                                            getSource(), e.getSource()));
-                                }
-                            } else {
+                            if (orderChanged) {
+                                cachedList.remove(mo);
                                 addToCache(mo);
                                 superFireChangedEvent(new ListChangedEvent(e.
                                         getSource(), e.getSource()));
                             }
+                        } else {
+                            addToCache(mo);
+                            superFireChangedEvent(new ListChangedEvent(e.
+                                    getSource(), e.getSource()));
                         }
                     }
                 } else if (cachedList.contains(mo)) {
@@ -160,21 +159,37 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
             }
             return cachedList;
         }
+
+        Document lastEntryTemp = null;
+        if (startIndex == lastStartIndex + lastElements) {
+            //we can avoid skips by creating a sort query using the lastEntry
+            lastEntryTemp = cachedList.last();
+        }
+        final Document lastEntry = lastEntryTemp;
         initTreeSet();
         lastStartIndex = startIndex;
         lastElements = elements;
-
-        table.getCollection().find(query.getQuery()).sort(query.getSort()).
-                skip((int) startIndex).limit((int) (elements)).forEach(new Block<org.bson.Document>() {
-
-                    @Override
-                    public void apply(org.bson.Document dbObject) {
-                        Document o = table.getEntityForMongo(dbObject);
-                        if (query.isInQuery(o)) {
-                            addToCache(o);
-                        }
-                    }
-                });
+        if (lastEntry != null) {
+             // avoid skips by creating a query from the lastEntry
+              new ShadowAwareCursor(new WrappedQuery(query){
+                  @Override
+                  public Bson getQuery() {
+                     return query.getSortQuery(lastEntry);
+                  }
+              } , table).setLimit((int) elements).forEeach(new Block<Document>() {
+                @Override
+                public void apply(Document t) {
+                    addToCache(t);
+                }
+            });
+        } else {
+            new ShadowAwareCursor(query, table).setSkip((int) startIndex).setLimit((int) elements).forEeach(new Block<Document>() {
+                @Override
+                public void apply(Document t) {
+                    addToCache(t);
+                }
+            });
+        }
         return cachedList;
     }
 
@@ -184,15 +199,10 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
             return cachedList;
         }
         initTreeSet();
-        table.getCollection().find(query.getQuery()).sort(query.getSort()).forEach(new Block<org.bson.Document>() {
-
+        new ShadowAwareCursor(query, table).forEeach(new Block<Document>() {
             @Override
-            public void apply(org.bson.Document dbObject) {
-                String id = "" + dbObject.get("_id");
-                Document o = table.getEntityForMongo(dbObject);
-                if (query.isInQuery(o)) {
-                    addToCache(o);
-                }
+            public void apply(Document t) {
+                addToCache(t);
             }
         });
         return cachedList;
@@ -206,7 +216,7 @@ public class QueryResultListModel extends DatabaseListModel implements Serializa
 
     @Override
     public long getSize(int max) {
-        CountOptions co=new CountOptions();
+        CountOptions co = new CountOptions();
         co.limit(max);
         return table.getCollection().count(query.getQuery());
     }

@@ -424,26 +424,21 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
     }
 
     public Document queryOne(BaseQuery query) {
-        org.bson.Document dbObject = (org.bson.Document) collection.find(query.
-                getQuery()).limit(1).first();
-        if (dbObject == null) {
-            return null;
-        }
-        String id = "" + dbObject.get("_id");
-        synchronized (map) {
-            Document o = map.get(id);
-            if (o == null) {
-                o = new Document(getEngine(), self, dbObject);
-                addToCache(o);
+        ShadowAwareCursor c = new ShadowAwareCursor(query, this).setLimit(1);
+        Iterator<Document> iter = c.iterator();
+        try {
+            if (iter.hasNext()) {
+                return iter.next();
+            } else {
+                return null;
             }
-            return o;
+        } finally {
+            c.close();
         }
     }
 
     public boolean exists(BaseQuery query) {
-        org.bson.Document dbObject = (org.bson.Document) collection.find(query.
-                getQuery()).limit(1).first();
-        return dbObject != null;
+        return queryOne(query) != null;
     }
 
     public long count(BaseQuery query) {
@@ -452,77 +447,21 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
 
     public List<Document> query(final BaseQuery query) {
         final ArrayList list = new ArrayList(16);
-        collection.find(query.getQuery()).sort(query.getSort()).forEach(new Block<org.bson.Document>() {
+        new ShadowAwareCursor(query, this).forEeach(new Block<Document>() {
             @Override
-            public void apply(org.bson.Document dbObject) {
-                String id = "" + dbObject.get("_id");
-                synchronized (map) {
-                    Document o = map.get(id);
-                    if (o == null) {
-                        o = new Document(getEngine(), self, dbObject);
-                        addToCache(o);
-                    }
-                    if (query.isInQuery(o)) {
-                        list.add(o);
-                    }
-                }
+            public void apply(Document t) {
+                list.add(t);
             }
         });
         return list;
     }
 
     public void forEach(final BaseQuery query, final Block<Document> block) {
-        collection.find(query.getQuery()).sort(query.getSort()).forEach(new Block<org.bson.Document>() {
-
-            @Override
-            public void apply(org.bson.Document dbObject) {
-                String id = "" + dbObject.get("_id");
-                synchronized (map) {
-                    Document o = map.get(id);
-                    if (o == null) {
-                        o = new Document(getEngine(), self, dbObject);
-                        addToCache(o);
-                    }
-                    block.apply(o);
-                }
-            }
-        });
+        new ShadowAwareCursor(query, this).forEeach(block);
     }
 
     public Iterable<Document> queryIterable(final BaseQuery query) {
-        final MongoCursor cursor = collection.find(query.getQuery()).sort(query.getSort()).iterator();
-        return new Iterable<Document>() {
-
-            @Override
-            public Iterator<Document> iterator() {
-                return new Iterator<Document>() {
-
-                    @Override
-                    public boolean hasNext() {
-                        return cursor.hasNext();
-                    }
-
-                    @Override
-                    public Document next() {
-                        org.bson.Document dbObject = (org.bson.Document) cursor.next();
-                        String id = "" + dbObject.get("_id");
-                        synchronized (map) {
-                            Document o = map.get(id);
-                            if (o == null) {
-                                o = new Document(getEngine(), self, dbObject);
-                                addToCache(o);
-                            }
-                            return o;
-                        }
-                    }
-
-                    @Override
-                    public void remove() {
-                        cursor.remove();
-                    }
-                };
-            }
-        };
+        return new ShadowAwareCursor(query, this);
     }
 
     public QueryResultListModel query(AbstractListenerOwner comp, BaseQuery query) {

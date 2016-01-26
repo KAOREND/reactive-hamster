@@ -20,46 +20,12 @@ public class DirtyCursor implements Iterable<Document> {
     public DirtyCursor(final BaseQuery query, DocumentCollection dc) {
         this.query = query;
         this.dc = dc;
-         DocumentCursor cursor = new DocumentCursor(new BaseQuery() {
+         DocumentCursor cursor = new DocumentCursor(new WrappedQuery(query){
             @Override
             public Bson getQuery() {
                return query.getShadowQuery();
             }
-
-            @Override
-            public Bson getShadowQuery() {
-                return query.getShadowQuery();
-            }
-
-            @Override
-            public Bson getSort() {
-                return query.getSort();
-            }
-
-            @Override
-            public Bson getSortQuery(Document startDoc) {
-                return query.getSortQuery(startDoc);
-            }
-
-            @Override
-            public boolean isInQuery(Document o) {
-                return query.isInQuery(o);
-            }
-
-            @Override
-            public int compare(Document o1, Document o2) {
-               return query.compare(o1, o2);
-            }
-
-            @Override
-            public boolean isOrderAttribute(Attribute attr) {
-               return query.isOrderAttribute(attr);
-            }
-
-            @Override
-            public int compare(Object o1, Object o2) {
-                return query.compare(o1, o2);
-            }
+            
         },dc);
         
         

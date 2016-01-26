@@ -8,6 +8,7 @@ import com.kaibla.hamster.persistence.query.Conditions;
 import com.kaibla.hamster.persistence.query.Query;
 import com.kaibla.hamster.testutils.MongoDBTest;
 import java.util.Iterator;
+import java.util.SortedSet;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -242,6 +243,69 @@ public class ShadowAwareCursorTest extends MongoDBTest {
         assertTrue(iter.hasNext());
         assertTrue(doc4 == iter.next());
         assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void testQueryResultModel() {
+
+        TransactionManager tm = testEngine.getTransactionManager();
+        Transaction t1 = tm.startTransaction();
+        IntegerAttribute attr = new IntegerAttribute(testTable.getClass(), "intattr6");
+        Document doc1 = testTable.createNew();
+        doc1.set(attr, 1);
+        doc1.writeToDatabase();
+
+        Document doc2 = testTable.createNew();
+        doc2.set(attr, 2);
+        doc2.writeToDatabase();
+
+        Document doc3 = testTable.createNew();
+        doc3.set(attr, 3);
+        doc3.writeToDatabase();
+
+        Document doc4 = testTable.createNew();
+        doc4.set(attr, 4);
+        doc4.writeToDatabase();
+
+        Document doc5 = testTable.createNew();
+        doc5.set(attr, 5);
+        doc5.writeToDatabase();
+
+        Document doc6 = testTable.createNew();
+        doc6.set(attr, 6);
+        doc6.writeToDatabase();
+
+        Document doc7 = testTable.createNew();
+        doc7.set(attr, 7);
+        doc7.writeToDatabase();
+
+        Document doc8 = testTable.createNew();
+        doc8.set(attr, 8);
+        doc8.writeToDatabase();
+        tm.commit();
+        Context.clear();
+        Transaction t2 = tm.startTransaction();
+        
+        QueryResultListModel qm= new QueryResultListModel(testTable, t2, testTable, new Query().addSortCriteria(attr, false));
+        SortedSet<Document> s=qm.get(0, 2);
+        assertTrue("expected size was 2 but it was: "+s.size(),s.size() == 2);
+        assertTrue(s.contains(doc1));
+        assertTrue(s.contains(doc2));
+        s=qm.get(6, 2);
+        assertTrue("expected size was 2 but it was: "+s.size(),s.size() == 2);
+        assertTrue(s.contains(doc7));
+        assertTrue(s.contains(doc8));
+        
+        
+        qm= new QueryResultListModel(testTable, t2, testTable, new Query().addSortCriteria(attr, false));
+        s=qm.get(0, 2);
+        assertTrue("expected size was 2 but it was: "+s.size(),s.size() == 2);
+        assertTrue(s.contains(doc1));
+        assertTrue(s.contains(doc2));
+        s=qm.get(2, 2);
+        assertTrue("expected size was 2 but it was: "+s.size(),s.size() == 2);
+        assertTrue(s.contains(doc3));
+        assertTrue(s.contains(doc4));
     }
 
 }
