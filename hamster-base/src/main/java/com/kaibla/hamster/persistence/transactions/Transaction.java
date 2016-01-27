@@ -27,11 +27,20 @@ public class Transaction extends AbstractListenerOwner {
     
     private Document transactionDocument;
     
-    private boolean rollback=false;
+    private Throwable rollbackCause;
             
     private boolean finished=false;
     
     private HashMap<ObjectId, Transactions.State> stateCache;
+    
+   
+    
+    private int retriesLeft =-1;
+    
+    /**
+     * True while the transaction manager is committing or rolling back this transaction
+     */
+    private boolean commitOrRollback=false;
     
     protected Transaction(Document transactionDocument) {
         afterCommitTasks = new LinkedList<>();
@@ -57,6 +66,24 @@ public class Transaction extends AbstractListenerOwner {
         return afterCommitTasks;
     }
 
+    public boolean isCommitOrRollback() {
+        return commitOrRollback;
+    }
+
+    public void setCommitOrRollback(boolean commitOrRollback) {
+        this.commitOrRollback = commitOrRollback;
+    }
+
+    public void setRetriesLeft(int retriesLeft) {
+        this.retriesLeft = retriesLeft;
+    }
+
+    public int getRetriesLeft() {
+        return retriesLeft;
+    }
+
+   
+
     public List<Runnable> getAfterRollbackTasks() {
         return afterRollbackTasks;
     }
@@ -78,14 +105,14 @@ public class Transaction extends AbstractListenerOwner {
         return transactionDocument.getObjectId();
     }
 
-    public void setRollback(boolean rollback) {
-        this.rollback = rollback;
+    public void setRollbackCause(Throwable rollbackCause) {
+        this.rollbackCause = rollbackCause;
     }
 
-    public boolean isRollback() {
-        return rollback;
+    public Throwable getRollbackCause() {
+        return rollbackCause;
     }
-    
+ 
     public void setState(Transactions.State state) {
         Transaction t=Context.getTransaction();
         Context.setTransaction(null);

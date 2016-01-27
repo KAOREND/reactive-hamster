@@ -26,6 +26,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+import static java.util.logging.Logger.getLogger;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -41,7 +46,7 @@ public class ResumeTest extends UITest implements Serializable {
      */
     @Test
     public void testWriteReplace() throws IOException, ClassNotFoundException {
-        Document mo=testTable.createNew();
+        Document mo=testCollection.createNew();
         ByteArrayOutputStream bout= new ByteArrayOutputStream();
         ObjectOutputStream out=new ObjectOutputStream(bout);
         out.writeObject(mo);
@@ -57,7 +62,7 @@ public class ResumeTest extends UITest implements Serializable {
      @Test
     public void testWriteReplacePage() throws IOException, ClassNotFoundException {
         HamsterPage page = createTestPage(testUIEngine);        
-        Document mo=testTable.createNew();
+        Document mo=testCollection.createNew();
         TestComponent c = new TestComponent();
         c.m=mo;
         c.test="test";
@@ -75,7 +80,7 @@ public class ResumeTest extends UITest implements Serializable {
      
      @Test
     public void testWriteReplaceComponent() throws IOException, ClassNotFoundException {
-        Document mo=testTable.createNew();
+        Document mo=testCollection.createNew();
         TestComponent c = new TestComponent();
         c.m=mo;
         c.test="test";

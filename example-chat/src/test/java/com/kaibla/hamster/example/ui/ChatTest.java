@@ -15,6 +15,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Example Unit test for the Chat. The test requires a running MongoDB instance.
@@ -58,7 +59,7 @@ public class ChatTest extends UITest {
     public ExampleChatPage createTestPage(UIEngine engine) {
         //create a TestPage
         HamsterSession session = new HamsterSession(engine);
-        session.setUser(testTable.createNew());
+        session.setUser(testCollection.createNew());
         ExampleChatPage page = new ExampleChatPage(engine, session);
         UIContext.setPage(page);
         Context.setListenerContainer(page.getListenerContainer());

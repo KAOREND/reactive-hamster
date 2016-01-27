@@ -5,7 +5,9 @@ import com.kaibla.hamster.base.HamsterEngine;
 import com.kaibla.hamster.persistence.attribute.Attribute;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.model.Document.DocumentData;
+import com.kaibla.hamster.persistence.model.OptimisticLockException;
 import com.mongodb.client.MongoDatabase;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import org.bson.types.ObjectId;
@@ -33,37 +35,82 @@ public class TransactionManager {
         return transaction;
     }
 
+    public void runInTransaction(Runnable runable) {
+        runInTransaction(runable, -1);
+    }
+
+    public void runInTransaction(Runnable runnable, int retries) {
+        Transaction t = null;
+        try {
+            if (Context.getTransaction() == null) {
+                t = startTransaction();
+                t.setRetriesLeft(retries);
+            }
+            t = Context.getTransaction();
+            runnable.run();
+        } catch (OptimisticLockException ex) {
+            rollback();
+            if (t.getRetriesLeft() > 0) {
+                //retry
+                Context.setTransaction(null);
+                runInTransaction(runnable, retries - 1);
+                return;
+            } else {
+                throw new RollbackException(ex);
+            }
+        } catch (Throwable throwable) {
+            rollback();
+            throw new RollbackException(throwable);
+        }
+        
+        try {
+             commit();  
+        } catch (Throwable th) {
+            rollback();
+           throw new RollbackException(th);
+        }
+        if (t.getRollbackCause() != null) {
+            rollback();
+            throw new RollbackException(t.getRollbackCause());
+        }
+    }
+
     public void commit(Transaction transaction) {
         // change state to committing
         transaction.setState(Transactions.State.COMMTTING);
-        Transaction t = Context.getTransaction();
-        Context.setTransaction(null);
+        transaction.setCommitOrRollback(true);
         // clean up dirty documents        
         for (Entry<Document, DocumentData> entry : transaction.getPrivateDataObjects().entrySet()) {
             Document doc = entry.getKey();
             DocumentData data = entry.getValue();
             org.bson.Document bson = data.getDataObject();
-            if (!data.getChangedAttributes().isEmpty() || bson.containsKey(Document.TRANSACTION)) {
-                for (Iterator<Attribute> it = data.getChangedAttributes().iterator(); it.hasNext();) {
-                    Attribute attr = it.next();
-                    attr.deleteShadowCopy(bson);
+            if (!data.getChangedAttributes().isEmpty() && bson.containsKey(Document.TRANSACTION)) {
+                if (bson.getObjectId(Document.TRANSACTION).equals(transaction.getTransactionId())) {
+                    for (Iterator<Attribute> it = data.getChangedAttributes().iterator(); it.hasNext();) {
+                        Attribute attr = it.next();
+                        attr.deleteShadowCopy(bson);
+                    }
+                    bson.remove(Document.TRANSACTION);
+                    bson.remove(Document.DIRTY);
+                    if (bson.containsKey(Document.NEW)) {
+                        bson.remove(Document.NEW);
+                    }
+                    try {
+                        doc.writeToDatabase(false);
+                    } catch (OptimisticLockException ex) {
+                        throw ex;
+                    }
                 }
-                bson.remove(Document.TRANSACTION);
-                bson.remove(Document.DIRTY);
-                bson.remove(Document.NEW);
-                doc.writeToDatabase(false);
             }
         }
 
-        // change transaction state to committed
+        // change transaction state to committed       
+        transaction.setState(Transactions.State.COMMITTED);
+        transaction.setFinished(true);
         // run after commit task        
         for (Runnable task : transaction.getAfterCommitTasks()) {
             task.run();
         }
-        transaction.setState(Transactions.State.COMMITTED);
-        transaction.setFinished(true);
-
-        Context.setTransaction(t);
     }
 
     public void commit() {
@@ -81,34 +128,36 @@ public class TransactionManager {
     public void rollback(Transaction transaction) {
         // change state to rolling back
         transaction.setState(Transactions.State.ROLLING_BACK);
-
-        Transaction oldT = Context.getTransaction();
-        Context.setTransaction(null);
+        transaction.setCommitOrRollback(true);
         // revert changes documents        
-        for (Entry<Document, DocumentData> entry : transaction.getPrivateDataObjects().entrySet()) {
+        for (Entry<Document, DocumentData> entry : new ArrayList<Entry<Document, DocumentData>>(transaction.getPrivateDataObjects().entrySet())) {
             Document doc = entry.getKey();
             DocumentData data = entry.getValue();
             org.bson.Document bson = data.getDataObject();
-            if (!data.getChangedAttributes().isEmpty() || bson.containsKey(Document.TRANSACTION)) {
-                for (Iterator<Attribute> it = data.getChangedAttributes().iterator(); it.hasNext();) {
-                    Attribute attr = it.next();
-                    attr.revertChanges(bson);
+            if (bson.containsKey(Document.TRANSACTION)) {
+                if (bson.getObjectId(Document.TRANSACTION).equals(transaction.getTransactionId())) {
+                    if (bson.containsKey(Document.NEW)) {
+                        //the creation of this document needs to be rolled back
+                        doc.delete();
+                    } else if (!data.getChangedAttributes().isEmpty()) {
+                        for (Iterator<Attribute> it = data.getChangedAttributes().iterator(); it.hasNext();) {
+                            Attribute attr = it.next();
+                            attr.revertChanges(bson);
+                        }
+                        bson.remove(Document.TRANSACTION);
+                        bson.remove(Document.DIRTY);
+                        doc.writeToDatabase(false);
+                    }
                 }
-                bson.remove(Document.TRANSACTION);
-                bson.remove(Document.DIRTY);
-                doc.writeToDatabase(false);
             }
         }
-
-        // change transaction state to rolled back
-        // run after commit task        
+        // change transaction state to rolled back      
+        transaction.setState(Transactions.State.ROLLED_BACK);
+        transaction.setFinished(true);
+        // run after rollback tasks        
         for (Runnable task : transaction.getAfterRollbackTasks()) {
             task.run();
         }
-        transaction.setState(Transactions.State.ROLLED_BACK);
-        transaction.setFinished(true);
-
-        Context.setTransaction(oldT);
     }
 
     public void rollback() {

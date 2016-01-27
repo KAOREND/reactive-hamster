@@ -17,6 +17,7 @@ import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
 import org.junit.After;
 import org.junit.Before;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *
@@ -24,20 +25,20 @@ import org.junit.Before;
  */
 public class MongoDBTest extends BaseTest {
 
-    public DocumentCollection testTable;
+    public DocumentCollection testCollection;
     public MongoDatabase db;
     
 
     @Before
     public void setUp() {
         Context.clear();
-        MongoClient mongo = new MongoClient();
+        MongoClient mongo = new MongoClient();       
         db = mongo.getDatabase("mytest");
         db.drop();
         db = mongo.getDatabase("mytest");
         testEngine = createTestEngine();
         testEngine.init();        
-        testTable = new DocumentCollection(testEngine, db, "testTable") {
+        testCollection = new DocumentCollection(testEngine, db, "testTable") {
             @Override
             public String getCollectionName() {
                 return "testTable";

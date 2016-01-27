@@ -112,7 +112,7 @@ public class DataModel implements Serializable,Resumable {
                             listener.dataChanged(e);
                         }
                     } else {
-                        page.getEngine().execute(new Runnable() {
+                        page.getEngine().executeAfterCommit(new Runnable() {
                             @Override
                             public void run() {
                                 if (!e.hasBeenFiredOn(listener)) {

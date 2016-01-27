@@ -5,6 +5,8 @@ import com.kaibla.hamster.persistence.attribute.StringAttribute;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.model.OptimisticLockException;
 import com.kaibla.hamster.testutils.MongoDBTest;
+import java.util.Date;
+import org.bson.types.ObjectId;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -41,8 +43,8 @@ public class TransactionManagerTest extends MongoDBTest {
 
     @Test
     public void testSimpleRollback() {
-        StringAttribute text = new StringAttribute(testTable.getClass(), "text");
-        Document doc = testTable.createNew();
+        StringAttribute text = new StringAttribute(testCollection.getClass(), "text");
+        Document doc = testCollection.createNew();
         doc.set(text, "old value");
         doc.writeToDatabase();
 
@@ -71,8 +73,8 @@ public class TransactionManagerTest extends MongoDBTest {
 
     @Test
     public void testSimpleIsolation() {
-        StringAttribute text = new StringAttribute(testTable.getClass(), "text2");
-        Document doc = testTable.createNew();
+        StringAttribute text = new StringAttribute(testCollection.getClass(), "text2");
+        Document doc = testCollection.createNew();
         doc.set(text, "old value");
         doc.writeToDatabase();
         Context.clear();
@@ -110,8 +112,8 @@ public class TransactionManagerTest extends MongoDBTest {
 
     @Test
     public void testOptimisticLock() {
-        StringAttribute text = new StringAttribute(testTable.getClass(), "text3");
-        Document doc = testTable.createNew();
+        StringAttribute text = new StringAttribute(testCollection.getClass(), "text3");
+        Document doc = testCollection.createNew();
         doc.writeToDatabase();
 
         TransactionManager tm = testEngine.getTransactionManager();
@@ -136,8 +138,8 @@ public class TransactionManagerTest extends MongoDBTest {
 
     @Test
     public void testOptimisticLockUncommittedTransaction() {
-        StringAttribute text = new StringAttribute(testTable.getClass(), "text4");
-        Document doc = testTable.createNew();
+        StringAttribute text = new StringAttribute(testCollection.getClass(), "text4");
+        Document doc = testCollection.createNew();
         doc.writeToDatabase();
 
         TransactionManager tm = testEngine.getTransactionManager();
@@ -160,8 +162,8 @@ public class TransactionManagerTest extends MongoDBTest {
 
     @Test
     public void testOptimisticLockCommittedTransaction() {
-        StringAttribute text = new StringAttribute(testTable.getClass(), "text5");
-        Document doc = testTable.createNew();
+        StringAttribute text = new StringAttribute(testCollection.getClass(), "text5");
+        Document doc = testCollection.createNew();
         doc.writeToDatabase();
         TransactionManager tm = testEngine.getTransactionManager();
         Transaction t1 = tm.startTransaction();
@@ -176,8 +178,8 @@ public class TransactionManagerTest extends MongoDBTest {
 
     @Test
     public void testOptimisticLockRolledBackTransaction() {
-        StringAttribute text = new StringAttribute(testTable.getClass(), "text6");
-        Document doc = testTable.createNew();
+        StringAttribute text = new StringAttribute(testCollection.getClass(), "text6");
+        Document doc = testCollection.createNew();
         doc.writeToDatabase();
 
         TransactionManager tm = testEngine.getTransactionManager();
@@ -189,6 +191,129 @@ public class TransactionManagerTest extends MongoDBTest {
         Transaction t2 = tm.startTransaction();
         doc.set(text, "t2");
         doc.writeToDatabase();
+    }
+
+    @Test
+    public void testRunInTransaction() {
+        final StringAttribute text = new StringAttribute(testCollection.getClass(), "text7");
+        final Document doc = testCollection.createNew();
+        doc.writeToDatabase();
+
+        TransactionManager tm = testEngine.getTransactionManager();
+        Transaction t1 = tm.startTransaction();
+        doc.set(text, "t1");
+        doc.writeToDatabase();
+
+        Context.clear();
+        boolean rolledback = false;
+        try {
+            tm.runInTransaction(new Runnable() {
+                @Override
+                public void run() {
+                    doc.set(text, "t2");
+                    doc.writeToDatabase();
+                }
+            });
+        } catch (RollbackException ex) {
+            rolledback = true;
+        }
+        assertTrue(rolledback);
+        tm.runInTransaction(new Runnable() {
+            @Override
+            public void run() {
+                assertTrue(doc.get(text) == null);
+            }
+        });
+        Context.setTransaction(t1);
+        tm.commit();
+        tm.runInTransaction(new Runnable() {
+            @Override
+            public void run() {
+                assertTrue(doc.get(text).equalsIgnoreCase("t1"));
+            }
+        });
+    }
+
+    @Test
+    public void testRollbackCreation() {
+        final StringAttribute text = new StringAttribute(testCollection.getClass(), "text8");
+        assertTrue(testCollection.getSize() == 0);
+
+        TransactionManager tm = testEngine.getTransactionManager();
+        try {
+            tm.runInTransaction(new Runnable() {
+                @Override
+                public void run() {
+                    final Document doc = testCollection.createNew();
+                    doc.writeToDatabase();
+                    assertTrue(testCollection.getSize() == 1);
+                    throw new OptimisticLockException(doc);
+                }
+            });
+        } catch (RollbackException ex) {
+            ex.printStackTrace();
+        }
+        assertTrue(testCollection.getSize() == 0);
+    }
+    
+    static final ThreadLocal isItMe=new ThreadLocal();
+    private Document createDebugDocument() {
+     
+        org.bson.Document newData = new org.bson.Document();
+        ObjectId id = new ObjectId(new Date());
+        newData.put("_id", id);
+        Document newObject = new Document(testEngine, testCollection, newData) {
+            @Override
+            public synchronized void writeToDatabase() {
+                if(isItMe.get() != null) {
+                super.writeToDatabase(); 
+                } else {
+                    throw new RuntimeException("this should not have been called by another thread. Who was it?");
+                }
+            }
+            
+        };
+        newObject.setNew(true);
+        testCollection.addToCache(newObject);
+        return newObject;   
+    }
+
+    @Test
+    public void testRollbackCreation2() {
+        final StringAttribute text = new StringAttribute(testCollection.getClass(), "text9");
+        assertTrue(testCollection.getSize() == 0);
+        isItMe.set(this);
+        for (int i = 0; i < 20;i++) {
+            testCollection.deleteContent();
+            Context.clear();
+            final TransactionManager tm = testEngine.getTransactionManager();
+            tm.startTransaction();
+            final Document doc1 = createDebugDocument();
+            doc1.writeToDatabase();
+            tm.commit();
+            Context.clear();
+            final Transaction t1 = tm.startTransaction();
+            doc1.set(text, "uncommitted");
+            doc1.writeToDatabase();
+            Context.clear();
+
+            tm.runInTransaction(new Runnable() {
+                @Override
+                public void run() {
+                    if (Context.getTransaction().getRetriesLeft() == 1) {
+                        tm.commit(t1);
+                    }
+                    final Document doc = testCollection.createNew();
+                    doc.set(text, "newone" + Context.getTransaction().getRetriesLeft());
+                    doc.writeToDatabase();
+                    doc1.set(text, "" + Context.getTransaction().getRetriesLeft());
+                    doc1.writeToDatabase();
+                }
+            }, 5);
+
+            assertTrue("testTable size was: " + testCollection.getSize(), testCollection.getSize() == 2);
+            assertTrue(doc1.get(text).equals("1"));
+        }
     }
 
 }

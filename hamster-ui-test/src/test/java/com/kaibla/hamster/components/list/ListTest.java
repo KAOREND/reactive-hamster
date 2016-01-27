@@ -25,6 +25,8 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -65,8 +67,8 @@ public class ListTest extends UITest implements Serializable {
         
         page.addComponent(d);
         page.toString();
-        final StringAttribute testName = new StringAttribute(testTable.getClass(), "name");
-        List testList = new List(page,"testList", testTable.query(d,new Query()) ) {         
+        final StringAttribute testName = new StringAttribute(testCollection.getClass(), "name");
+        List testList = new List(page,"testList", testCollection.query(d,new Query()) ) {         
             
             @Override
             public HamsterComponent renderElement(DataModel data) {
@@ -80,7 +82,7 @@ public class ListTest extends UITest implements Serializable {
         d.addElement(testList);
        
         
-        Document obj = testTable.createNew();
+        Document obj = testCollection.createNew();
         obj.set(testName, "testEntry1");  
         obj.writeToDatabase();
         String t = m.getModificiationXML();
@@ -94,7 +96,7 @@ public class ListTest extends UITest implements Serializable {
         assertFalse("testEntry1 should not be rendered twice ",t.contains("testEntry1"));
         
         m.confirmLastModificationXML(m.getConfirmationCounter());
-        Document obj2 = testTable.createNew();
+        Document obj2 = testCollection.createNew();
         obj2.set(testName, "testEntry2");  
         obj2.writeToDatabase();
         

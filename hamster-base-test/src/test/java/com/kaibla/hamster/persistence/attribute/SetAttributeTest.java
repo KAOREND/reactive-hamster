@@ -21,6 +21,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static java.util.logging.Logger.getLogger;
+import static java.util.logging.Logger.getLogger;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *
@@ -53,8 +55,8 @@ public class SetAttributeTest extends MongoDBTest {
 
     @Test
     public void testSetAttribute() {
-        Document testObject = testTable.createNew();
-        SetAttribute setAttribute = new SetAttribute(testTable.getClass(), "test_set");
+        Document testObject = testCollection.createNew();
+        SetAttribute setAttribute = new SetAttribute(testCollection.getClass(), "test_set");
         HashSet testSet = new HashSet();
         testSet.add("hello");
         testObject.set(setAttribute, testSet);
@@ -64,8 +66,8 @@ public class SetAttributeTest extends MongoDBTest {
 
     @Test
     public void testSetQuery() {
-        Document testObject = testTable.createNew();
-        SetAttribute setAttribute = new SetAttribute(testTable.getClass(), "test_set2");
+        Document testObject = testCollection.createNew();
+        SetAttribute setAttribute = new SetAttribute(testCollection.getClass(), "test_set2");
         HashSet testSet = new HashSet();
         testSet.add("apple");
         testSet.add("banana");
@@ -73,16 +75,16 @@ public class SetAttributeTest extends MongoDBTest {
         testObject.set(setAttribute, testSet);
         testObject.writeToDatabase();
 
-        Document queriedObject = testTable.queryOne(new Query().equals(setAttribute, "apple"));
+        Document queriedObject = testCollection.queryOne(new Query().equals(setAttribute, "apple"));
         assert queriedObject != null;
         assert queriedObject.get(setAttribute).contains("apple");
         assert new Query().equals(setAttribute, "apple").isInQuery(queriedObject);
         assert !new Query().equals(setAttribute, "blue").isInQuery(queriedObject);
-        Document nothing = testTable.queryOne(new Query().equals(setAttribute, "nothing"));
+        Document nothing = testCollection.queryOne(new Query().equals(setAttribute, "nothing"));
         assert nothing == null;
 
         LOG.info("Search with userset blue______________________________________");
-        Iterator cursor = testTable.getCollection().find(new Query().equals(setAttribute, "apple").getQuery()).iterator();
+        Iterator cursor = testCollection.getCollection().find(new Query().equals(setAttribute, "apple").getQuery()).iterator();
         while (cursor.hasNext()) {
             org.bson.Document dbObject = (org.bson.Document) cursor.next();
             LOG.log(Level.INFO, "{0}", dbObject);
@@ -95,15 +97,15 @@ public class SetAttributeTest extends MongoDBTest {
         int tagsPerMessage = 60;
         int conversations = 2;
         int messages = 100;
-        SetAttribute usersAttr = new SetAttribute(testTable.getClass(), "test_users");
-        SetAttribute tagsAttr = new SetAttribute(testTable.getClass(), "test_tags");
+        SetAttribute usersAttr = new SetAttribute(testCollection.getClass(), "test_users");
+        SetAttribute tagsAttr = new SetAttribute(testCollection.getClass(), "test_tags");
 
         long startTime = currentTimeMillis();
 
-        testTable.ensureIndex(true, false, usersAttr);
-        testTable.ensureIndex(false, true, tagsAttr);
+        testCollection.ensureIndex(true, false, usersAttr);
+        testCollection.ensureIndex(false, true, tagsAttr);
         for (int ci = 0; ci < conversations; ci++) {
-            Document conversation = testTable.createNew();
+            Document conversation = testCollection.createNew();
             HashSet userSet = new HashSet();
             conversation.set(usersAttr, userSet);
             for (int ui = 1; ui < users + 1; ui++) {
@@ -129,7 +131,7 @@ public class SetAttributeTest extends MongoDBTest {
             int userId = r.nextInt(users) + 1;
             //equals(usersAttr, ""+userId)
             String tag = "" + (userId * tagsPerMessage + r.nextInt(tagsPerMessage * messages));
-            Document test = testTable.queryOne(new Query().equals(usersAttr, "" + userId).equals(tagsAttr, tag));
+            Document test = testCollection.queryOne(new Query().equals(usersAttr, "" + userId).equals(tagsAttr, tag));
 //           assert test != null;
         }
         processTime = currentTimeMillis() - startTime;

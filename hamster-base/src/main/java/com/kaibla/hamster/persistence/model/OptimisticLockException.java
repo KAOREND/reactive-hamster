@@ -10,21 +10,21 @@ import com.kaibla.hamster.base.Context;
  */
 public class OptimisticLockException extends RuntimeException {
     
-    Document stalledDocument;
+    Document staleDocument;
 
-    public OptimisticLockException(Document stalledDocument) {
-        super("Document could not be written as it was changed by another process in between. Stalled document:  "+stalledDocument.getDataObject().toJson());
-        this.stalledDocument = stalledDocument;
+    public OptimisticLockException(Document staleDocument) {
+        super("Document could not be written as it was changed by another process in between. Stale document:  "+staleDocument.getDataObject().toJson());
+        this.staleDocument = staleDocument;
         if(Context.getTransaction() != null) {
-            Context.getTransaction().setRollback(true);
+           Context.getTransaction().setRollbackCause(this);
         }
     }
     
     public OptimisticLockException(Document stalledDocument,String msg) {
         super(msg);
-        this.stalledDocument = stalledDocument;
+        this.staleDocument = stalledDocument;
         if(Context.getTransaction() != null) {
-            Context.getTransaction().setRollback(true);
+            Context.getTransaction().setRollbackCause(this);
         }
     }
 }

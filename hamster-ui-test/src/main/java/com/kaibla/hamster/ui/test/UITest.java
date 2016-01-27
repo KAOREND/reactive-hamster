@@ -19,6 +19,7 @@ import java.util.logging.Logger;
 import static java.util.logging.Logger.getLogger;
 import org.junit.After;
 import org.junit.Before;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *
@@ -38,7 +39,7 @@ public class UITest extends MongoDBTest {
         testUIEngine=(UIEngine) testEngine;
         testEngine=testUIEngine;
         CometProcessor.setEngine(testUIEngine);
-        UIContext.setUser(testTable.createNewDummy());
+        UIContext.setUser(testCollection.createNewDummy());
     }
     
     @After
@@ -94,7 +95,7 @@ public class UITest extends MongoDBTest {
 
     public HamsterPage createTestPage(UIEngine engine) {
         HamsterSession session = new HamsterSession(engine);
-        session.setUser(testTable.createNew());
+        session.setUser(testCollection.createNew());
         // session.setLastUserLogin(new Document());
         HamsterPage page = new TestPage(engine, session);
         UIContext.setPage(page);

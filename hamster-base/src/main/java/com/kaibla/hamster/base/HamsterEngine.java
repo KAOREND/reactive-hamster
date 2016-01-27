@@ -30,6 +30,7 @@ import static java.util.logging.Logger.getLogger;
  * @author Kai Orend
  */
 public abstract class HamsterEngine implements Runnable, Serializable {
+
     private static final long serialVersionUID = 1L;
 
     private final List threads = synchronizedList(new LinkedList());
@@ -40,7 +41,7 @@ public abstract class HamsterEngine implements Runnable, Serializable {
     private boolean destroyed = false;
     private boolean init = false;
     private static HamsterEngine engine = null;
-    private EventQueue  eventQueue = null;
+    private EventQueue eventQueue = null;
     private TransactionManager transactionManager = null;
 
     /**
@@ -52,8 +53,8 @@ public abstract class HamsterEngine implements Runnable, Serializable {
         init = true;
         engine = this;
     }
-    
-     public void initDB(MongoDatabase db) {
+
+    public void initDB(MongoDatabase db) {
         eventQueue = new EventQueue(db, this);
         transactionManager = new TransactionManager(this, db);
     }
@@ -61,7 +62,6 @@ public abstract class HamsterEngine implements Runnable, Serializable {
     public TransactionManager getTransactionManager() {
         return transactionManager;
     }
-     
 
     public EventQueue getEventQueue() {
         return eventQueue;
@@ -86,7 +86,7 @@ public abstract class HamsterEngine implements Runnable, Serializable {
     public void removeModel(DataModel model) {
         models.remove(model);
     }
-    
+
     public int countModels() {
         return models.size();
     }
@@ -143,7 +143,7 @@ public abstract class HamsterEngine implements Runnable, Serializable {
                 try {
                     for (Object runnable : page.flushPending()) {
                         try {
-                            executeSynchronously((Runnable)runnable, page, true);
+                            executeSynchronously((Runnable) runnable, page, true);
                         } catch (Exception ex) {
                             getLogger(HamsterEngine.class.
                                     getName()).
@@ -177,6 +177,19 @@ public abstract class HamsterEngine implements Runnable, Serializable {
                     executeSynchronously(runnable, page, true);
                 }
             });
+        }
+    }
+    
+    public void executeAfterCommit(final Runnable runnable, final AbstractListenerContainer page) {
+        if(Context.getTransaction() != null) {
+            Context.getTransaction().getAfterCommitTasks().add(new Runnable() {
+                @Override
+                public void run() {
+                     execute(runnable, page);
+                }
+            });
+        } else {
+            execute(runnable, page);
         }
     }
 
@@ -217,8 +230,13 @@ public abstract class HamsterEngine implements Runnable, Serializable {
     protected void executeSynchronouslyInternal(final Runnable runnable, final AbstractListenerContainer page) {
         try {
             //start transaction
-            Context.clear();           
-            AutomaticMonitoring.run(runnable, 5000, "");
+            Context.clear();
+            transactionManager.runInTransaction(new Runnable() {
+                @Override
+                public void run() {
+                    AutomaticMonitoring.run(runnable, 5000, "");
+                }
+            },5);
             //finish transaction                        
             updateOtherPages();
             Context.clear();
@@ -226,8 +244,8 @@ public abstract class HamsterEngine implements Runnable, Serializable {
             Context.clear();
         }
     }
-    
-        @Override
+
+    @Override
     public void run() {
         while (!isDestroyed()) {
             try {
@@ -237,7 +255,7 @@ public abstract class HamsterEngine implements Runnable, Serializable {
                 }
                 boolean cleanedUpSomething = false;
                 long time = currentTimeMillis();
-                
+
                 Iterator<DataModel> modelsIterator = models.iterator();
                 while (modelsIterator.hasNext()) {
                     DataModel model = modelsIterator.next();
@@ -252,7 +270,9 @@ public abstract class HamsterEngine implements Runnable, Serializable {
                     }
                     yield();
                 }
-                if(periodicCleanup())cleanedUpSomething=true;
+                if (periodicCleanup()) {
+                    cleanedUpSomething = true;
+                }
                 //a good time to free some memory
                 //System.gc();
                 LOG.info("time for cleaning inlcuding gc " + (System.currentTimeMillis() - time));
@@ -262,14 +282,15 @@ public abstract class HamsterEngine implements Runnable, Serializable {
 
             } catch (Throwable ex) {
                 LOG.log(java.util.logging.Level.SEVERE, ex.getMessage(), ex);
-            } 
+            }
 //             unlockMap();
         }
 
     }
-    
+
     /**
      * This method is called by the cleanup thread. Override this if you want to do additional cleanups.
+     *
      * @return true if the method cleaned up something
      */
     public boolean periodicCleanup() {
@@ -286,7 +307,7 @@ public abstract class HamsterEngine implements Runnable, Serializable {
         }
         LOG.info("Stopping executer");
         executer.shutdown();
-        engine=null;
+        engine = null;
         LOG.info("Engine stopped");
     }
 

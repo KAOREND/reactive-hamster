@@ -1,6 +1,5 @@
 package com.kaibla.hamster.base;
 
-
 import static com.kaibla.hamster.base.UIContext.setEvent;
 import static com.kaibla.hamster.base.UIContext.setPage;
 import static com.kaibla.hamster.base.UIContext.setRequest;
@@ -144,7 +143,12 @@ public abstract class UIEngine extends HamsterEngine {
                 UIContext.setUser(pageContainer.getOwner().getUser());
                 UIContext.setLocale(getUserLocale(pageContainer.getOwner().getUser()));
                 UIContext.setPage(pageContainer.getOwner());
-                AutomaticMonitoring.run(runnable, 5000, "page: " + (pageContainer.getOwner() == null ? null : pageContainer.getOwner().getId()));
+                getTransactionManager().runInTransaction(new Runnable() {
+                    @Override
+                    public void run() {
+                        AutomaticMonitoring.run(runnable, 5000, "page: " + (pageContainer.getOwner() == null ? null : pageContainer.getOwner().getId()));
+                    }
+                },5);
                 updateOtherPages();
             } else {
                 super.executeSynchronouslyInternal(runnable, container);
@@ -667,11 +671,9 @@ public abstract class UIEngine extends HamsterEngine {
                                     }
                                 }
                                 checkedMap.put(value, value);
-                            } else {
-                                if (!checkedMap.containsKey(value)) {
-                                    queue.add(new DebugPathEntry(value, field, nextEntry));
-                                    checkedMap.put(value, value);
-                                }
+                            } else if (!checkedMap.containsKey(value)) {
+                                queue.add(new DebugPathEntry(value, field, nextEntry));
+                                checkedMap.put(value, value);
                             }
                         }
                     } catch (IllegalArgumentException ex) {
@@ -1143,6 +1145,7 @@ public abstract class UIEngine extends HamsterEngine {
 
     public void logAction(HamsterComponent comp, Action action) {
     }
+
     /*
      * public void initLanguageManager(File path) { lanman = new
      * LanguageManager(path); }
@@ -1292,7 +1295,7 @@ public abstract class UIEngine extends HamsterEngine {
         }
         if (page == null) {
             //try to delete broken stored page:
-            
+
             LOG.log(Level.WARNING, "page can not be restored  {0}  {1}", new Object[]{fileName, pageId});
         } else {
             LOG.log(Level.INFO, "resumed page: {0}   {1}", new Object[]{fileName, page.
@@ -1301,7 +1304,7 @@ public abstract class UIEngine extends HamsterEngine {
         gridFS.find(Filters.eq("filename", fileName)).forEach(new Block<GridFSFile>() {
             @Override
             public void apply(GridFSFile file) {
-                  gridFS.delete(file.getObjectId()); 
+                gridFS.delete(file.getObjectId());
             }
         });
         return page;

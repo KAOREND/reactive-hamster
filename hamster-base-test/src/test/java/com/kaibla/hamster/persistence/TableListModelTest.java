@@ -33,6 +33,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import static com.kaibla.hamster.testutils.Assertions.assertOrder;
 import static java.util.logging.Logger.getLogger;
+import static com.kaibla.hamster.testutils.Assertions.assertOrder;
+import static java.util.logging.Logger.getLogger;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static com.kaibla.hamster.testutils.Assertions.assertOrder;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *
@@ -65,22 +71,22 @@ public class TableListModelTest extends MongoDBTest {
 
     @Test
     public void testOrder() {
-        testTable.deleteContent();
-        IntegerAttribute orderAttr = new IntegerAttribute(testTable.getClass(),"order");
+        testCollection.deleteContent();
+        IntegerAttribute orderAttr = new IntegerAttribute(testCollection.getClass(),"order");
         for (int i = 0; i < 10; i++) {
-            Document mo = testTable.createNew();
+            Document mo = testCollection.createNew();
             mo.set(orderAttr, i);
             mo.writeToDatabase();
         }
         BaseQuery orderQuery = new Query().addSortCriteria(orderAttr, false);
         int i = 0;
-        for (Document mo : testTable.query(orderQuery)) {
+        for (Document mo : testCollection.query(orderQuery)) {
             assertTrue(mo.get(orderAttr) == i);
             i++;
         }
         assertTrue(i == 10);
         i = 0;
-        for (Iterator it = testTable.
+        for (Iterator it = testCollection.
                 query(createTestListenerContainer(testEngine), orderQuery).get().
                 iterator(); it.hasNext();) {
             Document mo = (Document) it.next();
@@ -92,25 +98,25 @@ public class TableListModelTest extends MongoDBTest {
 
     @Test
     public void testOrderChanged() {
-        testTable.deleteContent();
+        testCollection.deleteContent();
         AbstractListenerContainer container=createTestListenerContainer(testEngine);
    
         
-        IntegerAttribute orderAttr = new IntegerAttribute(testTable.getClass(),"order2");
-        Document mo1 = testTable.createNew();
+        IntegerAttribute orderAttr = new IntegerAttribute(testCollection.getClass(),"order2");
+        Document mo1 = testCollection.createNew();
         mo1.set(orderAttr, 1);
         mo1.writeToDatabase();
-        Document mo2 = testTable.createNew();
+        Document mo2 = testCollection.createNew();
         mo2.set(orderAttr, 2);
         mo2.writeToDatabase();
-        Document mo3 = testTable.createNew();
+        Document mo3 = testCollection.createNew();
         mo3.set(orderAttr, 3);
         mo3.writeToDatabase();
-        Document mo4 = testTable.createNew();
+        Document mo4 = testCollection.createNew();
         mo4.set(orderAttr, 4);
         mo4.writeToDatabase();
         BaseQuery orderQuery = new Query().addSortCriteria(orderAttr, false);
-        QueryResultListModel testModel = testTable.query(container, orderQuery);
+        QueryResultListModel testModel = testCollection.query(container, orderQuery);
         List<Document> l1 = new ArrayList(testModel.get());
         final BooleanObject orderChanged=new BooleanObject(false);        
         
@@ -136,7 +142,7 @@ public class TableListModelTest extends MongoDBTest {
         mo3.set(orderAttr, 3);
         mo3.writeToDatabase();
         assertTrue("order should have been changed",orderChanged.bool);
-        assertOrder(testTable.query(orderQuery),mo1,mo2,mo3,mo4);
+        assertOrder(testCollection.query(orderQuery),mo1,mo2,mo3,mo4);
         assertOrder(testModel.get(),mo1,mo2,mo3,mo4);
         orderChanged.bool=false;       
         mo3.writeToDatabase();
@@ -152,8 +158,8 @@ public class TableListModelTest extends MongoDBTest {
         //otherwise the engine would execute the event handling 
         //asynchronously and not inside our own thread
         Context.setListenerContainer(container);
-        ListModel lm = testTable.query(container,new Query());
-        Document obj1 = testTable.createNew();      
+        ListModel lm = testCollection.query(container,new Query());
+        Document obj1 = testCollection.createNew();      
         obj1.writeToDatabase();
         final BooleanObject changed=new BooleanObject(false);
         lm.addChangedListener(new ChangedListener() {
@@ -168,7 +174,7 @@ public class TableListModelTest extends MongoDBTest {
                 return false;
             }
         });
-        Document obj2 = testTable.createNew();      
+        Document obj2 = testCollection.createNew();      
         obj2.writeToDatabase();
         assertTrue("listener should have been called after change",changed.bool);
     }

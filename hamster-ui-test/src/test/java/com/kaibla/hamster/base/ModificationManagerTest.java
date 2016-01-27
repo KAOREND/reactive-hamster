@@ -28,6 +28,11 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Test;
 import static java.util.logging.Logger.getLogger;
+import static java.util.logging.Logger.getLogger;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static java.util.logging.Logger.getLogger;
 
 /**
  *
@@ -142,16 +147,16 @@ public class ModificationManagerTest extends UITest {
         DefaultComponent d = new DefaultComponent(page);
         page.addComponent(d);
 
-        final StringAttribute testAttribute = new StringAttribute(testTable.getClass(), "test");
-        final IntegerAttribute orderAttribute = new IntegerAttribute(testTable.getClass(), "testint");
+        final StringAttribute testAttribute = new StringAttribute(testCollection.getClass(), "test");
+        final IntegerAttribute orderAttribute = new IntegerAttribute(testCollection.getClass(), "testint");
 
         for (int i = 0; i < 2; i++) {
-            Document t = testTable.createNew();
+            Document t = testCollection.createNew();
             t.set(testAttribute, "hello" + i);
             t.set(orderAttribute, i);
             t.writeToDatabase();
         }
-        List l = new List(page, "testList", testTable.query(d, new Query().addSortCriteria(orderAttribute, false))) {
+        List l = new List(page, "testList", testCollection.query(d, new Query().addSortCriteria(orderAttribute, false))) {
             @Override
             public HamsterComponent renderElement(DataModel data) {
                 DefaultComponent e = new DefaultComponent(page);
@@ -170,7 +175,7 @@ public class ModificationManagerTest extends UITest {
         assertTrue("there should be no modifications other than appends, but there have been " + m.notConfirmed.
                 size(), m.notConfirmed.isEmpty());
         onlyAllowAppends = false;
-        Document newEntry = testTable.createNew();
+        Document newEntry = testCollection.createNew();
         newEntry.set(testAttribute, "helloNewEntry");
         newEntry.set(orderAttribute, 15);
         newEntry.writeToDatabase();

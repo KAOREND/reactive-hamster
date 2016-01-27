@@ -20,6 +20,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+import static java.util.logging.Logger.getLogger;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -35,7 +39,7 @@ public class EntityTest extends MongoDBTest {
      */
     @Test
     public void testWriteReplace() throws IOException, ClassNotFoundException {
-        Document mo=testTable.createNew();
+        Document mo=testCollection.createNew();
         ByteArrayOutputStream bout= new ByteArrayOutputStream();
         ObjectOutputStream out=new ObjectOutputStream(bout);
         out.writeObject(mo);
@@ -50,8 +54,8 @@ public class EntityTest extends MongoDBTest {
     
      @Test
     public void testCleanUp() {
-       Document test =testTable.createNew();
-       StringAttribute testattr=new StringAttribute(testTable.getClass(), "test");
+       Document test =testCollection.createNew();
+       StringAttribute testattr=new StringAttribute(testCollection.getClass(), "test");
        ChangedListener testListener= new ChangedListener() {
 
            @Override

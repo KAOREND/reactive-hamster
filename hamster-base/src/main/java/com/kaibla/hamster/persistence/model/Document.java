@@ -24,6 +24,7 @@ import com.kaibla.hamster.collections.StringSource;
 import com.kaibla.hamster.persistence.transactions.TransactionManager;
 import com.kaibla.hamster.persistence.transactions.Transactions;
 import com.mongodb.WriteConcern;
+import com.mongodb.client.model.Filters;
 import static com.mongodb.client.model.Filters.*;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
@@ -43,6 +44,7 @@ import static java.util.logging.Logger.getLogger;
 import org.bson.BsonInt32;
 import org.bson.types.ObjectId;
 import static java.util.logging.Logger.getLogger;
+import org.bson.conversions.Bson;
 
 /**
  *
@@ -311,7 +313,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public synchronized void writeToDatabase(boolean fireEvents) {
-        writeToDatabase(fireEvents, WriteConcern.W1);
+        writeToDatabase(fireEvents, WriteConcern.MAJORITY);
     }
 
     public synchronized void writeToDatabase(boolean fireEvents, WriteConcern writeConcern) {
@@ -334,7 +336,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             }
         }
 
-        if (Context.getTransaction() != null) {
+        if (Context.getTransaction() != null && !Context.getTransaction().isCommitOrRollback()) {
             localData.put(TRANSACTION, Context.getTransaction().getTransactionId());
             localData.put(DIRTY, true);
         }
@@ -349,14 +351,27 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             synchronized (data) {
                 data.dataObject = localData;
             }
-            if (fireEvents) {
-                DataObjectCreatedEvent event = new DataObjectCreatedEvent(this, this);
-                this.fireChangedEvent(event);
-                collection.fireChangedEvent(event);
-                collection.fireEvents(event);
-                getEngine().getEventQueue().pushEvent(event);
-            }
             collection.addToCache(this);
+            if (fireEvents) {
+                final Document self = this;
+                Runnable runEvents = new Runnable() {
+                    @Override
+                    public void run() {
+                        DataObjectCreatedEvent event = new DataObjectCreatedEvent(self, self);
+                        self.fireChangedEvent(event);
+                        collection.fireChangedEvent(event);
+                        collection.fireEvents(event);
+                        getEngine().getEventQueue().pushEvent(event);
+
+                    }
+                };
+                if (Context.getTransaction() != null) {
+                    Context.getTransaction().getAfterCommitTasks().add(runEvents);
+                } else {
+                    runEvents.run();
+                }
+
+            }
         } else {
             collection.addToCache(this);
             if (localData.containsKey(REVISION)) {
@@ -370,6 +385,17 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
                                 ), localData);
                 if (old == null) {
                     //could not find orinal version, so our version of the document is stalled
+                    //remove this Object from transaction, as there is nothing to rollback as it was not written to the DB
+                    if (Context.getTransaction() != null) {
+                        Context.getTransaction().getPrivateDataObjects().remove(this);
+                    }
+//                    org.bson.Document old2 = (org.bson.Document)collection.getCollection().withWriteConcern(writeConcern).
+//                        find(                                and(
+//                                        eq("_id", localData.get("_id"))                                      
+//                                )).first();
+//                    if(old2 != null) {
+//                         throw new OptimisticLockException(this,"old: "+old2.toString()+"  new: "+localData.toJson()); 
+//                    }
                     throw new OptimisticLockException(this);
                 }
             } else {
@@ -392,7 +418,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         }
 //        LOG.info("write to database finsished");
     }
-    
+
     public boolean isVisible() {
         return !(shouldReadShadowCopy() && getData().getDataObject().containsKey(NEW));
     }
@@ -430,15 +456,27 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public void fireChangedEvent() {
-        DataObjectChangedEvent event = new DataObjectChangedEvent(this, new HashSet(getData().changedAttributes));
-        this.fireChangedEvent(event);
-        collection.fireChangedEvent(event);
-        collection.fireEvents(event);
-        getEngine().getEventQueue().pushEvent(event);
+        final Document self = this;
+        Runnable runEvents = new Runnable() {
+            @Override
+            public void run() {
+                DataObjectChangedEvent event = new DataObjectChangedEvent(self, new HashSet(getData().changedAttributes));
+                self.fireChangedEvent(event);
+                collection.fireChangedEvent(event);
+                collection.fireEvents(event);
+                getEngine().getEventQueue().pushEvent(event);
+            }
+        };
+        if(Context.getTransaction() != null) {
+            Context.getTransaction().getAfterCommitTasks().add(runEvents);
+        } else {
+            runEvents.run();
+        }
+
     }
 
     public synchronized void delete() {
-        collection.getCollection().deleteOne(data.dataObject);
+        collection.getCollection().deleteOne(Filters.eq("_id", getObjectId()));
         DataObjectDeletedEvent event = new DataObjectDeletedEvent(this, this);
         collection.fireChangedEvent(event);
         collection.fireEvents(event);
