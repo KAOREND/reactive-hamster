@@ -10,6 +10,8 @@ import com.mongodb.client.MongoDatabase;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.logging.Logger;
+import static java.util.logging.Logger.getLogger;
 import org.bson.types.ObjectId;
 
 /**
@@ -40,42 +42,54 @@ public class TransactionManager {
     }
 
     public void runInTransaction(Runnable runnable, int retries) {
-        Transaction t = null;
+
+        Transaction old = Context.getTransaction();
         try {
-            if (Context.getTransaction() == null) {
+            Transaction t = null;
+            try {
                 t = startTransaction();
                 t.setRetriesLeft(retries);
+                if (t.isDestroyed()) {
+                    throw new RuntimeException("Current transaction is already finished, it cannot be used for further processing");
+                }
+                runnable.run();
+            } catch (OptimisticLockException ex) {
+                rollback();
+                if (t.getRetriesLeft() > 0) {
+                    //retry
+                    Context.setTransaction(null);
+                    LOG.info("retrying transaction  retries left: " + retries);
+                    runInTransaction(runnable, retries - 1);
+                    return;
+                } else {
+                    throw new RollbackException(ex);
+                }
+            } catch (Throwable throwable) {
+                rollback();
+                throw new RollbackException(throwable);
             }
-            t = Context.getTransaction();
-            runnable.run();
-        } catch (OptimisticLockException ex) {
-            rollback();
-            if (t.getRetriesLeft() > 0) {
-                //retry
-                Context.setTransaction(null);
-                runInTransaction(runnable, retries - 1);
-                return;
-            } else {
-                throw new RollbackException(ex);
+
+            try {
+                commit(t);
+            } catch (Throwable th) {
+                rollback(t);
+                throw new RollbackException(th);
             }
-        } catch (Throwable throwable) {
-            rollback();
-            throw new RollbackException(throwable);
-        }
-        
-        try {
-             commit();  
-        } catch (Throwable th) {
-            rollback();
-           throw new RollbackException(th);
-        }
-        if (t.getRollbackCause() != null) {
-            rollback();
-            throw new RollbackException(t.getRollbackCause());
+            if (t.getRollbackCause() != null) {
+                rollback(t);
+                throw new RollbackException(t.getRollbackCause());
+            }
+        } finally {
+            Context.setTransaction(old);
         }
     }
 
-    public void commit(Transaction transaction) {
+    public void commit(final Transaction transaction) {
+        if (transaction.isDestroyed()) {
+            //nothing to do anymore
+            //was very likely already committed
+            return;
+        }
         // change state to committing
         transaction.setState(Transactions.State.COMMTTING);
         transaction.setCommitOrRollback(true);
@@ -107,17 +121,24 @@ public class TransactionManager {
         // change transaction state to committed       
         transaction.setState(Transactions.State.COMMITTED);
         transaction.setFinished(true);
-        // run after commit task        
-        for (Runnable task : transaction.getAfterCommitTasks()) {
+        // run after commit task 
+        for (Runnable task : new ArrayList<Runnable>(transaction.getAfterCommitTasks())) {
             task.run();
         }
     }
 
+
     public void commit() {
-        commit(Context.getTransaction());
+        if(Context.getTransaction() != null) {
+            commit(Context.getTransaction());
+        }
+        // Context.setTransaction(null);
     }
 
     public static void addAfterCommitTask(Transaction transaction, Runnable task) {
+        if (transaction.isDestroyed()) {
+            throw new RuntimeException("transaction is already finished and cannot accept after commit tasks anymore");
+        }
         transaction.getAfterCommitTasks().add(task);
     }
 
@@ -125,7 +146,7 @@ public class TransactionManager {
         addAfterCommitTask(Context.getTransaction(), task);
     }
 
-    public void rollback(Transaction transaction) {
+    public void rollback(final Transaction transaction) {
         // change state to rolling back
         transaction.setState(Transactions.State.ROLLING_BACK);
         transaction.setCommitOrRollback(true);
@@ -154,10 +175,12 @@ public class TransactionManager {
         // change transaction state to rolled back      
         transaction.setState(Transactions.State.ROLLED_BACK);
         transaction.setFinished(true);
+
         // run after rollback tasks        
-        for (Runnable task : transaction.getAfterRollbackTasks()) {
+        for (Runnable task : new ArrayList<Runnable>(transaction.getAfterRollbackTasks())) {
             task.run();
         }
+
     }
 
     public void rollback() {
@@ -166,6 +189,9 @@ public class TransactionManager {
     }
 
     public static void addAfterRollbackTask(Transaction transaction, Runnable task) {
+        if (transaction.isDestroyed()) {
+            throw new RuntimeException("transaction is already finished and cannot accept after rollback tasks");
+        }
         transaction.getAfterRollbackTasks().add(task);
     }
 
@@ -200,4 +226,6 @@ public class TransactionManager {
             return state;
         }
     }
+
+    private static final Logger LOG = getLogger(TransactionManager.class.getName());
 }

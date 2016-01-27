@@ -181,8 +181,8 @@ public abstract class HamsterEngine implements Runnable, Serializable {
     }
     
     public void executeAfterCommit(final Runnable runnable, final AbstractListenerContainer page) {
-        if(Context.getTransaction() != null) {
-            Context.getTransaction().getAfterCommitTasks().add(new Runnable() {
+        if(Context.getTransaction() != null && !Context.getTransaction().isDestroyed()) {
+            TransactionManager.addAfterCommitTask(new Runnable() {
                 @Override
                 public void run() {
                      execute(runnable, page);

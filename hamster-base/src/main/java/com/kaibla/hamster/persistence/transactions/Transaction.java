@@ -4,7 +4,6 @@ import com.kaibla.hamster.base.AbstractListenerContainer;
 import com.kaibla.hamster.base.AbstractListenerOwner;
 import com.kaibla.hamster.base.Context;
 import com.kaibla.hamster.base.DataEvent;
-import com.kaibla.hamster.base.HamsterEngine;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.model.Document.DocumentData;
 import java.util.Date;
@@ -130,6 +129,6 @@ public class Transaction extends AbstractListenerOwner {
     
     @Override
     public boolean isDestroyed() {
-       return !finished;
+       return finished;
     }
 }

@@ -181,7 +181,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     private String getShadowAwareAttributeName(Attribute attr) {
-        if (shouldReadShadowCopy()) {
+        if (shouldReadShadowCopy() && getDataObject().containsKey(attr.getShadowName())) {
             return attr.getShadowName();
         } else {
             return attr.getName();
@@ -339,6 +339,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         if (Context.getTransaction() != null && !Context.getTransaction().isCommitOrRollback()) {
             localData.put(TRANSACTION, Context.getTransaction().getTransactionId());
             localData.put(DIRTY, true);
+        } else if(Context.getTransaction() != null && Context.getTransaction().isCommitOrRollback()) {
+            fireEvents = false; //we do not need to fire events again as this is only the commit or rollback
         }
 
         if (isNew) {
@@ -366,7 +368,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
                     }
                 };
                 if (Context.getTransaction() != null) {
-                    Context.getTransaction().getAfterCommitTasks().add(runEvents);
+                    TransactionManager.addAfterCommitTask(runEvents);
                 } else {
                     runEvents.run();
                 }
@@ -467,8 +469,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
                 getEngine().getEventQueue().pushEvent(event);
             }
         };
-        if(Context.getTransaction() != null) {
-            Context.getTransaction().getAfterCommitTasks().add(runEvents);
+        if(Context.getTransaction() != null && !Context.getTransaction().isDestroyed()) {
+           TransactionManager.addAfterCommitTask(runEvents);
         } else {
             runEvents.run();
         }

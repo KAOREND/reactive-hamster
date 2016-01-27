@@ -1011,6 +1011,7 @@ public abstract class UIEngine extends HamsterEngine {
                 if (page.getModificationManager().isEmpty() && comp == page) {
                     return null;
                 }
+                getTransactionManager().commit();
                 return page.getModificationManager().getModificiationXML();
 
             } else if (command.equalsIgnoreCase("c")) {
@@ -1034,6 +1035,7 @@ public abstract class UIEngine extends HamsterEngine {
                     LOG.log(java.util.logging.Level.SEVERE, ex.getMessage(), ex);
                 }
                 page.getModificationManager().setStaticRequest(false);
+                getTransactionManager().commit();
                 return page.getModificationManager().getModificiationXML();
             }
         } finally {
@@ -1062,6 +1064,7 @@ public abstract class UIEngine extends HamsterEngine {
                 } catch (Exception ex) {
                     LOG.log(java.util.logging.Level.SEVERE, ex.getMessage(), ex);
                 }
+                getTransactionManager().commit();
                 return convertText(comp.getPage().getHTMLCodeForPageCreation().toString());
             } else if (command.equalsIgnoreCase("k")) {
                 // Seite ist im neuen Fenster/Tab
@@ -1076,6 +1079,7 @@ public abstract class UIEngine extends HamsterEngine {
                 } catch (Exception ex) {
                     LOG.log(java.util.logging.Level.SEVERE, ex.getMessage(), ex);
                 }
+                getTransactionManager().commit();
                 return convertText(clone.getPage().getHTMLCode().toString());
             } else if (command.equalsIgnoreCase("u")) {
                 // fuer FileUpload:
@@ -1085,9 +1089,11 @@ public abstract class UIEngine extends HamsterEngine {
                 } catch (Exception ex) {
                     LOG.log(java.util.logging.Level.SEVERE, ex.getMessage(), ex);
                 }
+                getTransactionManager().commit();
                 return convertText(comp.getIFrameHTMLCode());
             } else if (command.equalsIgnoreCase("i")) {
                 // fuer iframes:
+                getTransactionManager().commit();
                 return convertText(comp.getIFrameHTMLCode());
             }
         } finally {
@@ -1103,6 +1109,7 @@ public abstract class UIEngine extends HamsterEngine {
         page.getLock().lock();
         try {
             page.init();
+            getTransactionManager().commit();
             page.getModificationManager().reset();
             return page.getHTMLCodeForPageCreation();
         } finally {
@@ -1120,11 +1127,12 @@ public abstract class UIEngine extends HamsterEngine {
         page.getLock().lock();
         try {
             setPage(page);
-            page.init();
+            page.init();            
             page.getModificationManager().reset();
             page.getModificationManager().setStaticRequest(true);
             page.reconstruct(rec);
             page.getModificationManager().setStaticRequest(false);
+            getTransactionManager().commit();
             return page.getHTMLCodeForPageCreation();
         } finally {
             page.getLock().unlock();
