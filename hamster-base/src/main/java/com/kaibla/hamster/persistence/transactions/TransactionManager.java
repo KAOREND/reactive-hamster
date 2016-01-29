@@ -54,6 +54,7 @@ public class TransactionManager {
                 }
                 runnable.run();
             } catch (OptimisticLockException ex) {
+                ex.printStackTrace();
                 rollback();
                 if (t.getRetriesLeft() > 0) {
                     //retry

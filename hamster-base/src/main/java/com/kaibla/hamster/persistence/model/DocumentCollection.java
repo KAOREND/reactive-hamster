@@ -176,6 +176,10 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         newData.put("_id", id);
         Document newObject = new Document(getEngine(), this, newData);
         newObject.setNew(true);
+        if (Context.getTransaction() != null) {
+            //make sure that the new document is alive as long as the transaction runs
+            newObject.addHolder(Context.getTransaction());
+        }
         addToCache(newObject);
         return newObject;
     }
@@ -188,6 +192,11 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         newObject.setNew(true);
         getEngine().removeModel(newObject);
         newObject.setIsDummy(true);
+        if (Context.getTransaction() != null) {
+            //make sure that the new document is alive as long as the transaction runs
+            newObject.addHolder(Context.getTransaction());
+        }
+        addToCache(newObject);
         return newObject;
     }
 

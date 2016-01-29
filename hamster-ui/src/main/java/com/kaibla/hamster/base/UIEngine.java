@@ -1007,6 +1007,9 @@ public abstract class UIEngine extends HamsterEngine {
 
                 // Die Seite fragt nach einem XML, das die Veraenderungen
                 // beschreibt 
+                if(Context.getTransaction().isDestroyed()) {
+                    throw new RuntimeException("transaction cannot be already finished!");
+                }
                 comp.handleActions(params);
                 if (page.getModificationManager().isEmpty() && comp == page) {
                     return null;
