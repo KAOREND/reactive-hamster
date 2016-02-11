@@ -40,6 +40,7 @@ public class Transaction extends AbstractListenerOwner {
      * True while the transaction manager is committing or rolling back this transaction
      */
     private boolean commitOrRollback=false;
+    private boolean rollingBack=false;
     
     protected Transaction(Document transactionDocument) {
         afterCommitTasks = new LinkedList<>();
@@ -72,6 +73,16 @@ public class Transaction extends AbstractListenerOwner {
     public void setCommitOrRollback(boolean commitOrRollback) {
         this.commitOrRollback = commitOrRollback;
     }
+
+    public void setRollingBack(boolean rollingBack) {
+        this.rollingBack = rollingBack;
+    }
+
+    public boolean isRollingBack() {
+        return rollingBack;
+    }
+    
+    
 
     public void setRetriesLeft(int retriesLeft) {
         this.retriesLeft = retriesLeft;

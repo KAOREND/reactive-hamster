@@ -72,6 +72,11 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         dirtyIndex.append("unique", false);
         dirtyIndex.append("sparse", true);
         collection.createIndex(dirtyIndex);
+        org.bson.Document optimisticLockIndex = new org.bson.Document();
+        optimisticLockIndex.append("_id", 1);
+        optimisticLockIndex.append(Document.REVISION, 1);
+        optimisticLockIndex.append("unique", true);
+        collection.createIndex(dirtyIndex);
     }
 
     public synchronized void addChangedListener(ChangedListener listener, Query query) {

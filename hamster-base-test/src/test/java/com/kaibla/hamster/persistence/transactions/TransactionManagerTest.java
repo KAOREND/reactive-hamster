@@ -4,6 +4,8 @@ import com.kaibla.hamster.base.Context;
 import com.kaibla.hamster.persistence.attribute.StringAttribute;
 import com.kaibla.hamster.persistence.model.Document;
 import com.kaibla.hamster.persistence.model.OptimisticLockException;
+import com.kaibla.hamster.persistence.query.Conditions;
+import com.kaibla.hamster.persistence.query.Query;
 import com.kaibla.hamster.testutils.MongoDBTest;
 import java.util.Date;
 import org.bson.types.ObjectId;
@@ -255,27 +257,28 @@ public class TransactionManagerTest extends MongoDBTest {
         }
         assertTrue(testCollection.getSize() == 0);
     }
-    
-    static final ThreadLocal isItMe=new ThreadLocal();
+
+    static final ThreadLocal isItMe = new ThreadLocal();
+
     private Document createDebugDocument() {
-     
+
         org.bson.Document newData = new org.bson.Document();
         ObjectId id = new ObjectId(new Date());
         newData.put("_id", id);
         Document newObject = new Document(testEngine, testCollection, newData) {
             @Override
             public synchronized void writeToDatabase() {
-                if(isItMe.get() != null) {
-                super.writeToDatabase(); 
+                if (isItMe.get() != null) {
+                    super.writeToDatabase();
                 } else {
                     throw new RuntimeException("this should not have been called by another thread. Who was it?");
                 }
             }
-            
+
         };
         newObject.setNew(true);
         testCollection.addToCache(newObject);
-        return newObject;   
+        return newObject;
     }
 
     @Test
@@ -283,7 +286,7 @@ public class TransactionManagerTest extends MongoDBTest {
         final StringAttribute text = new StringAttribute(testCollection.getClass(), "text9");
         assertTrue(testCollection.getSize() == 0);
         isItMe.set(this);
-        for (int i = 0; i < 20;i++) {
+//        for (int i = 0; i < 20; i++) {
             testCollection.deleteContent();
             Context.clear();
             final TransactionManager tm = testEngine.getTransactionManager();
@@ -296,7 +299,7 @@ public class TransactionManagerTest extends MongoDBTest {
             doc1.set(text, "uncommitted");
             doc1.writeToDatabase();
             Context.clear();
-
+//            try {
             tm.runInTransaction(new Runnable() {
                 @Override
                 public void run() {
@@ -310,10 +313,49 @@ public class TransactionManagerTest extends MongoDBTest {
                     doc1.writeToDatabase();
                 }
             }, 5);
+            
 
             assertTrue("testTable size was: " + testCollection.getSize(), testCollection.getSize() == 2);
             assertTrue(doc1.get(text).equals("1"));
-        }
+//        }
+    }
+
+    @Test
+    public void testDeletion() {
+        StringAttribute text = new StringAttribute(testCollection.getClass(), "something");
+        Document doc = testCollection.createNew();
+        doc.writeToDatabase();
+
+        TransactionManager tm = testEngine.getTransactionManager();
+        Transaction t1 = tm.startTransaction();
+        doc.set(text, "t1");
+        doc.writeToDatabase();
+        tm.commit();
+
+        assertTrue(testCollection.queryOne(new Query().addCondition(
+                Conditions.eq(text, "t1"))) != null);
+
+        Context.clear();
+        Transaction t2 = tm.startTransaction();
+        doc.delete();
+        assertTrue(testCollection.queryOne(new Query().addCondition(
+                Conditions.eq(text, "t1")
+        ))
+                == null);
+
+        Context.clear();
+        Transaction t3 = tm.startTransaction();
+        assertTrue(testCollection.queryOne(new Query().addCondition(
+                Conditions.eq(text, "t1")
+        ))
+                != null);
+        Context.setTransaction(t2);
+        tm.commit();
+        Transaction t4 = tm.startTransaction();
+        assertTrue(testCollection.queryOne(new Query().addCondition(
+                Conditions.eq(text, "t1")
+        ))
+                == null);
     }
 
 }

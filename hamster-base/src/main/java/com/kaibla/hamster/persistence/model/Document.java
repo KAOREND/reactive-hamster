@@ -26,10 +26,10 @@ import com.kaibla.hamster.persistence.transactions.Transactions;
 import com.mongodb.WriteConcern;
 import com.mongodb.client.model.Filters;
 import static com.mongodb.client.model.Filters.*;
+import com.mongodb.client.model.InsertOneOptions;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -40,11 +40,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import static java.util.logging.Logger.getLogger;
 import org.bson.BsonInt32;
 import org.bson.types.ObjectId;
 import static java.util.logging.Logger.getLogger;
-import org.bson.conversions.Bson;
 
 /**
  *
@@ -66,6 +64,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     public final static String DIRTY = "dirty";
 
     public final static String NEW = "new";
+
+    public final static String DELETED = "deleted";
 
     public final static StringAttribute ID_ATTRIBUTE = new StringAttribute(Document.class, "_id");
 
@@ -339,7 +339,7 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
         if (Context.getTransaction() != null && !Context.getTransaction().isCommitOrRollback()) {
             localData.put(TRANSACTION, Context.getTransaction().getTransactionId());
             localData.put(DIRTY, true);
-        } else if(Context.getTransaction() != null && Context.getTransaction().isCommitOrRollback()) {
+        } else if (Context.getTransaction() != null && Context.getTransaction().isCommitOrRollback()) {
             fireEvents = false; //we do not need to fire events again as this is only the commit or rollback
         }
 
@@ -348,7 +348,15 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             if (Context.getTransaction() != null) {
                 localData.put(NEW, true);
             }
+
             collection.getCollection().withWriteConcern(writeConcern).insertOne(localData);
+            org.bson.Document written = (org.bson.Document) collection.getCollection().withWriteConcern(writeConcern).
+                    find(
+                            eq("_id", localData.get("_id"))
+                    ).first();
+            if (written == null) {
+                throw new RuntimeException("creation of new document could not be verified " + localData.toJson());
+            }
             isNew = false;
             synchronized (data) {
                 data.dataObject = localData;
@@ -391,14 +399,24 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
                     if (Context.getTransaction() != null) {
                         Context.getTransaction().getPrivateDataObjects().remove(this);
                     }
-//                    org.bson.Document old2 = (org.bson.Document)collection.getCollection().withWriteConcern(writeConcern).
-//                        find(                                and(
-//                                        eq("_id", localData.get("_id"))                                      
-//                                )).first();
-//                    if(old2 != null) {
-//                         throw new OptimisticLockException(this,"old: "+old2.toString()+"  new: "+localData.toJson()); 
-//                    }
-                    throw new OptimisticLockException(this);
+                    org.bson.Document old2 = (org.bson.Document) collection.getCollection().withWriteConcern(writeConcern).
+                            find(
+                                    eq("_id", localData.get("_id"))
+                            ).first();
+                    if (old2 != null) {
+                        throw new OptimisticLockException(this, "old: " + old2.toString() + "  new: " + localData.toJson());
+                    } else {
+                        old2 = (org.bson.Document) collection.getCollection().withWriteConcern(writeConcern).
+                                find(
+                                        eq("_id", localData.get("_id"))
+                                ).first();
+                        old2 = (org.bson.Document) collection.getCollection().withWriteConcern(writeConcern).
+                                find(
+                                        eq("_id", localData.get("_id"))
+                                ).first();
+                        throw new OptimisticLockException(this, "could not find old version of: " + localData.toJson());
+                    }
+                    //throw new OptimisticLockException(this);
                 }
             } else {
                 //add revision to legacy documents
@@ -422,7 +440,12 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public boolean isVisible() {
-        return !(shouldReadShadowCopy() && getData().getDataObject().containsKey(NEW));
+        boolean readShadow = shouldReadShadowCopy();
+        if (getData().getDataObject().containsKey(DELETED)) {
+            return readShadow;
+        }
+
+        return !(readShadow && getData().getDataObject().containsKey(NEW));
     }
 
     public boolean shouldReadShadowCopy() {
@@ -469,8 +492,8 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
                 getEngine().getEventQueue().pushEvent(event);
             }
         };
-        if(Context.getTransaction() != null && !Context.getTransaction().isDestroyed()) {
-           TransactionManager.addAfterCommitTask(runEvents);
+        if (Context.getTransaction() != null && !Context.getTransaction().isDestroyed()) {
+            TransactionManager.addAfterCommitTask(runEvents);
         } else {
             runEvents.run();
         }
@@ -478,13 +501,26 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
     }
 
     public synchronized void delete() {
+        if (Context.getTransaction() != null && !Context.getTransaction().isCommitOrRollback()) {
+            //we are in a transaction, only mark it as deleted
+            getDataObject().append(DELETED, true);
+            writeToDatabase(false);
+        } else {
+            deleteInternal();
+        }
+    }
+
+    private void deleteInternal() {
         collection.getCollection().deleteOne(Filters.eq("_id", getObjectId()));
-        DataObjectDeletedEvent event = new DataObjectDeletedEvent(this, this);
-        collection.fireChangedEvent(event);
-        collection.fireEvents(event);
-        this.fireChangedEvent(event);
-        getEngine().getEventQueue().pushEvent(event);
+        if (Context.getTransaction() == null || !Context.getTransaction().isRollingBack()) {
+            DataObjectDeletedEvent event = new DataObjectDeletedEvent(this, this);
+            collection.fireChangedEvent(event);
+            collection.fireEvents(event);
+            this.fireChangedEvent(event);
+            getEngine().getEventQueue().pushEvent(event);
+        }
         destroy();
+
     }
 
     private DocumentData getData() {
