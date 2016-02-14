@@ -338,9 +338,11 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
         Iterator iter = c.iterator();
         while (iter.hasNext()) {
             Document d = (Document) iter.next();
-            synchronized (d) {
-                if (!d.hasListeners() && !d.isNew()) {
-                    removeFromCache(d);
+            if (d != null) {
+                synchronized (d) {
+                    if (!d.hasListeners() && !d.isNew()) {
+                        removeFromCache(d);
+                    }
                 }
             }
         }
