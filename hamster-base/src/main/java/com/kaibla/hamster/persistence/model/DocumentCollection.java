@@ -421,17 +421,21 @@ public abstract class DocumentCollection extends AttributeFilteredModel implemen
 
     public void ensureIndex(boolean unique, boolean sparse, Attribute... attr) {
         org.bson.Document keys = new org.bson.Document();
+        boolean textIndex=false;
         for (Attribute a : attr) {
             if (a instanceof LongTextAttribute) {
                 keys.append(a.getName(), "text");
+                textIndex=true;
             } else {
                 keys.append(a.getName(), 1);
             }
             LOG.log(Level.INFO, "ensured Index on {0}  {1}", new Object[]{getCollectionName(), a.
                 getName()});
         }
-        keys.append("unique", unique);
-        keys.append("sparse", sparse);
+        if(!textIndex) {
+            keys.append("unique", unique);
+            keys.append("sparse", sparse);
+        }
         collection.createIndex(keys);
     }
 

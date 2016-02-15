@@ -27,6 +27,10 @@ public abstract class Attribute implements Serializable {
         }
         attributeMap.put(completeName, this);
     }
+    
+    public static void resetAttributeChecker() {
+        attributeMap.clear();
+    }
 
     public String getCompleteName() {
         return completeName;
