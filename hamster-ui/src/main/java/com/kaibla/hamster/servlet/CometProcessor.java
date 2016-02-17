@@ -38,7 +38,7 @@ public class CometProcessor extends HttpServlet {
            engine=UIEngine.getEngine();
         }
         self=this;
-        
+        engine.doLazyInit();
     }
     
     public static UIEngine getEngine() {

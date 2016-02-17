@@ -275,7 +275,7 @@ hamster.main.doSilentRequest = function (url, meth, sendData, isFormData) {
  Request an den Server
  */
 hamster.main.doRequest = function (url, meth, sendData, isFormData) {
-    if (typeof(WebSocket) == "function" && !hamster.main.websocketFailed) {
+    if (hamster.main.websocket) {
 //send over websocket if possible        
         hamster.main.doWebSocketRequest(url, meth, sendData, isFormData);
     } else {
