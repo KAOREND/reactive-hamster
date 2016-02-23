@@ -27,6 +27,7 @@ import com.mongodb.WriteConcern;
 import com.mongodb.client.model.Filters;
 import static com.mongodb.client.model.Filters.*;
 import com.mongodb.client.model.InsertOneOptions;
+import com.mongodb.client.result.UpdateResult;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -387,36 +388,14 @@ public class Document<T extends DocumentCollection> extends AttributeFilteredMod
             if (localData.containsKey(REVISION)) {
                 int oldRevision = localData.getInteger(REVISION);
                 localData.put(REVISION, oldRevision + 1);
-                Object old = collection.getCollection().withWriteConcern(writeConcern).
-                        findOneAndReplace(
+                UpdateResult result = collection.getCollection().withWriteConcern(writeConcern).
+                        replaceOne(
                                 and(
                                         eq("_id", localData.get("_id")),
                                         eq(REVISION, new BsonInt32(oldRevision))
                                 ), localData);
-                if (old == null) {
-                    //could not find orinal version, so our version of the document is stalled
-                    //remove this Object from transaction, as there is nothing to rollback as it was not written to the DB
-                    if (Context.getTransaction() != null) {
-                        Context.getTransaction().getPrivateDataObjects().remove(this);
-                    }
-                    org.bson.Document old2 = (org.bson.Document) collection.getCollection().withWriteConcern(writeConcern).
-                            find(
-                                    eq("_id", localData.get("_id"))
-                            ).first();
-                    if (old2 != null) {
-                        throw new OptimisticLockException(this, "old: " + old2.toString() + "  new: " + localData.toJson());
-                    } else {
-                        old2 = (org.bson.Document) collection.getCollection().withWriteConcern(writeConcern).
-                                find(
-                                        eq("_id", localData.get("_id"))
-                                ).first();
-                        old2 = (org.bson.Document) collection.getCollection().withWriteConcern(writeConcern).
-                                find(
-                                        eq("_id", localData.get("_id"))
-                                ).first();
-                        throw new OptimisticLockException(this, "could not find old version of: " + localData.toJson());
-                    }
-                    //throw new OptimisticLockException(this);
+                if(result.getModifiedCount() != 1) {
+                    throw new OptimisticLockException(this); 
                 }
             } else {
                 //add revision to legacy documents
